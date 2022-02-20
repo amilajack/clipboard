@@ -1,6 +1,6 @@
 # clipboard
 
-A better cli clipboard
+A better command line clipboard
 
 ## Installation
 

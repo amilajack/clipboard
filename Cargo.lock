@@ -93,6 +93,7 @@ dependencies = [
 name = "copy"
 version = "0.1.0"
 dependencies = [
+ "atty",
  "clap",
  "clipboard",
 ]

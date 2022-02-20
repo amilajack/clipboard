@@ -1,22 +1,45 @@
-use clap::Parser;
+use std::env::args;
+use std::fs;
+use std::path::PathBuf;
+use std::io::{Read, stdin};
+use atty::Stream;
+// TODO: try https://github.com/alacritty/copypasta instead of clipboard
+use clipboard::ClipboardContext;
+use clipboard::ClipboardProvider;
 
-/// Simple program to greet a person
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-struct Args {
-    /// Name of the person to greet
-    #[clap(short, long)]
-    name: String,
+fn write<T: AsRef<str>>(content: T) {
+    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+    ctx.set_contents(content.as_ref().to_owned()).unwrap();
+}
 
-    /// Number of times to greet
-    #[clap(short, long, default_value_t = 1)]
-    count: u8,
+fn print() {
+    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+    println!("{}", ctx.get_contents().unwrap());
 }
 
 fn main() {
-    let args = Args::parse();
+    // Handle `cp ...` stdin cases
+    // echo 'foo' | cp
+    if atty::isnt(Stream::Stdin) {
+        let mut buffer = String::new();
+        stdin().read_to_string(&mut buffer).unwrap();
+        write(buffer.trim());
+        return;
+    }
 
-    for _ in 0..args.count {
-        println!("Hello {}!", args.name)
+    // Handle `cp ...` stdout cases
+    match args().len() {
+        // Case of `cp`
+        1 => { return print() },
+        // Case of `cp my-file`
+        2 => match args().nth(1) {
+            Some(path) => {
+                let abs_path = PathBuf::from(path).canonicalize().unwrap();
+                let res = fs::read_to_string(abs_path).expect("file does not exist");
+                return write(res);
+            }
+            None => {}
+        },
+        _ => panic!("unexpected number of args")
     }
 }
