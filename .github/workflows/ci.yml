@@ -1,0 +1,28 @@
+name: CI
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Stable
+        run: cargo test
+      - name: Clippy
+        run: |
+          rustup component add clippy
+          cargo clippy --all-targets
+      - name: Oldstable
+        run: |
+          rustup default 1.56.0
+          cargo clean
+          cargo test
