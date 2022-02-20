@@ -3,17 +3,15 @@ use std::fs;
 use std::path::PathBuf;
 use std::io::{Read, stdin};
 use atty::Stream;
-// TODO: try https://github.com/alacritty/copypasta instead of clipboard
-use clipboard::ClipboardContext;
-use clipboard::ClipboardProvider;
+use copypasta::{ClipboardContext, ClipboardProvider};
 
 fn write<T: AsRef<str>>(content: T) {
-    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+    let mut ctx: ClipboardContext = ClipboardContext::new().unwrap();
     ctx.set_contents(content.as_ref().to_owned()).unwrap();
 }
 
 fn print() {
-    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+    let mut ctx: ClipboardContext = ClipboardContext::new().unwrap();
     println!("{}", ctx.get_contents().unwrap());
 }
 

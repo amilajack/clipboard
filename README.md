@@ -18,7 +18,10 @@ cat package.json | cb
 echo 'Hello World!' | cb
 
 # Read clipboard contents
-cb | vim
+cb | vim -
+
+# Search clipboard contents
+cb | grep hello
 ```
 
 ## History
