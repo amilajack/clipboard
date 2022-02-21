@@ -24,7 +24,11 @@ cb | vim -
 
 # Search clipboard contents
 cb | grep hello
+```
 
+## Upcoming
+
+```bash
 # List clipboard history
 cb list
 
