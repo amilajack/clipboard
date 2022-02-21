@@ -1,5 +1,7 @@
 # clipboard
 
+[![CI](https://github.com/amilajack/clipboard/actions/workflows/ci.yml/badge.svg)](https://github.com/amilajack/clipboard/actions/workflows/ci.yml)
+
 A better command line clipboard
 
 ## Installation
