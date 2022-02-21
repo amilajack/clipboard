@@ -17,4 +17,4 @@ path = "src/main.rs"
 
 [dependencies]
 atty = "0.2"
-copypasta = "*"
+copypasta = "0.7.1"
