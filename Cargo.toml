@@ -2,6 +2,14 @@
 name = "clipboard"
 version = "0.1.0"
 edition = "2018"
+authors = ["Amila Welihinda <amilajack@gmail.com>"]
+license = "MIT"
+description = "A better command line clipboard"
+readme = "README.md"
+homepage = "https://github.com/amilajack/clipboard"
+repository = "https://github.com/amilajack/clipboard"
+keywords = ["cli", "clipboard", "pipe"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 atty = "0.2"
