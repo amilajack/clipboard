@@ -5,7 +5,7 @@ A better command line clipboard
 ## Installation
 
 ```bash
-brew install cb
+cargo install clipboard-cli
 ```
 
 ## Usage
@@ -22,21 +22,11 @@ cb | vim -
 
 # Search clipboard contents
 cb | grep hello
-```
 
-## History
-
-```bash
-# queue peek
-cb peek
-cb peek 1
-```
-
-## Advanced
-
-```bash
+# List clipboard history
 cb list
 
-# aliasing
-alias c='cb'
+# View previous clipboard
+cb peek 1
+cb p 1
 ```
