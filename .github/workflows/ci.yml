@@ -100,11 +100,11 @@ jobs:
             aarch64-unknown-linux-gnu) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
           esac
 
-      - name: Install Foo
+      - name: Install xcp
         shell: bash
         if: startsWith(matrix.job.os, 'ubuntu')
         run: |
-          sudo apt-get -y install xcp
+          sudo apt-get -y install xorg-dev libxcb-shape0-dev libxcb-xfixes0-dev
 
       - name: Extract crate information
         shell: bash
