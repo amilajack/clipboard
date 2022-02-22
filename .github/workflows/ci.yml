@@ -132,7 +132,7 @@ jobs:
             libx11-xcb-dev
 
       - name: Install XCB
-        run: scripts/install_xcb.sh
+        run: sudo scripts/install_xcb.sh
 
       - name: Extract crate information
         shell: bash
