@@ -1,7 +1,7 @@
 name: CICD
 
 env:
-  MIN_SUPPORTED_RUST_VERSION: "1.50.0"
+  MIN_SUPPORTED_RUST_VERSION: "1.58.0"
   CARGO_TERM_COLOR: "always"
   CICD_INTERMEDIATES_DIR: "_cicd-intermediates"
 
@@ -99,6 +99,12 @@ jobs:
             arm-unknown-linux-*) sudo apt-get -y update ; sudo apt-get -y install gcc-arm-linux-gnueabihf ;;
             aarch64-unknown-linux-gnu) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
           esac
+
+      - name: Install Foo
+        shell: bash
+        if: startsWith(matrix.job.os, 'ubuntu')
+        run: |
+          sudo apt-get -y install xcp
 
       - name: Extract crate information
         shell: bash
@@ -203,7 +209,7 @@ jobs:
           cp "${{ steps.strip.outputs.BIN_PATH }}" "$ARCHIVE_DIR"
 
           # Man page
-          cp 'doc/${{ env.PROJECT_NAME }}.1' "$ARCHIVE_DIR"
+          cp 'doc/${{ env.PROJECT_BIN_NAME }}.1' "$ARCHIVE_DIR"
 
           # README, LICENSE and CHANGELOG files
           cp "README.md" "LICENSE" "CHANGELOG.md" "$ARCHIVE_DIR"
@@ -250,8 +256,8 @@ jobs:
           install -Dm755 "${{ steps.strip.outputs.BIN_PATH }}" "${DPKG_DIR}/usr/bin/${{ steps.strip.outputs.BIN_NAME }}"
 
           # Man page
-          install -Dm644 'doc/${{ env.PROJECT_NAME }}.1' "${DPKG_DIR}/usr/share/man/man1/${{ env.PROJECT_NAME }}.1"
-          gzip -n --best "${DPKG_DIR}/usr/share/man/man1/${{ env.PROJECT_NAME }}.1"
+          install -Dm644 'doc/${{ env.PROJECT_BIN_NAME }}.1' "${DPKG_DIR}/usr/share/man/man1/${{ env.PROJECT_BIN_NAME }}.1"
+          gzip -n --best "${DPKG_DIR}/usr/share/man/man1/${{ env.PROJECT_BIN_NAME }}.1"
 
           # README and LICENSE
           install -Dm644 "README.md" "${DPKG_DIR}/usr/share/doc/${DPKG_BASENAME}/README.md"
