@@ -104,7 +104,7 @@ jobs:
         shell: bash
         if: startsWith(matrix.job.os, 'ubuntu')
         run: |
-          sudo apt-get -y install libx11-dev xorg-dev libxcb-shape0-dev libxcb-xfixes0-dev pkg-config libasound2-dev libssl-dev cmake libfreetype6-dev libexpat1-dev libxcb-composite0-dev
+          sudo apt-get -y install libx11-dev xorg-dev libxcb-shape0-dev libxcb-xfixes0-dev pkg-config libasound2-dev libssl-dev cmake xclip libfreetype6-dev libexpat1-dev libxcb-composite0-dev
 
       - name: Extract crate information
         shell: bash
@@ -188,7 +188,7 @@ jobs:
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
-          #use-cross: ${{ matrix.job.use-cross }}
+          use-cross: ${{ matrix.job.use-cross }}
           command: test
           args: --locked --target=${{ matrix.job.target }} ${{ steps.test-options.outputs.CARGO_TEST_OPTIONS}}
 
