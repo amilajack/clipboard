@@ -105,6 +105,11 @@ jobs:
         if: startsWith(matrix.job.os, 'ubuntu')
         run: |
           sudo apt-get -y install libx11-dev xorg-dev libx11-xcb-dev libxkbcommon-x11-dev
+
+      - name: Install xcb
+        shell: bash
+        if: startsWith(matrix.job.os, 'ubuntu')
+        run: |
           which xcb
 
       - name: Extract crate information
