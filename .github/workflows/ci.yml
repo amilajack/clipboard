@@ -17,7 +17,7 @@ on:
 jobs:
   min_version:
     name: Minimum supported rust version
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
@@ -53,33 +53,33 @@ jobs:
       matrix:
         job:
           - {
-              os: ubuntu-20.04,
+              os: ubuntu-latest,
               target: arm-unknown-linux-gnueabihf,
               use-cross: true,
             }
           - {
-              os: ubuntu-20.04,
+              os: ubuntu-latest,
               target: arm-unknown-linux-musleabihf,
               use-cross: true,
             }
           - {
-              os: ubuntu-20.04,
+              os: ubuntu-latest,
               target: aarch64-unknown-linux-gnu,
               use-cross: true,
             }
           - {
-              os: ubuntu-20.04,
+              os: ubuntu-latest,
               target: i686-unknown-linux-gnu,
               use-cross: true,
             }
           - {
-              os: ubuntu-20.04,
+              os: ubuntu-latest,
               target: i686-unknown-linux-musl,
               use-cross: true,
             }
-          - { os: ubuntu-20.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
           - {
-              os: ubuntu-20.04,
+              os: ubuntu-latest,
               target: x86_64-unknown-linux-musl,
               use-cross: true,
             }
@@ -104,13 +104,35 @@ jobs:
         shell: bash
         if: startsWith(matrix.job.os, 'ubuntu')
         run: |
-          sudo apt-get -y install libx11-dev xorg-dev libx11-xcb-dev libxkbcommon-x11-dev libxcb-shape0-dev libxcb-xfixes0-dev
+          sudo apt-get update
+          sudo apt-get install \
+            libgl1-mesa-dev \
+            libxcb-composite0-dev \
+            libxcb-damage0-dev \
+            libxcb-dpms0-dev \
+            libxcb-dri2-0-dev \
+            libxcb-dri3-dev \
+            libxcb-glx0-dev \
+            libxcb-present-dev \
+            libxcb-randr0-dev \
+            libxcb-record0-dev \
+            libxcb-render0-dev \
+            libxcb-res0-dev \
+            libxcb-screensaver0-dev \
+            libxcb-shape0-dev \
+            libxcb-shm0-dev \
+            libxcb-sync-dev \
+            libxcb-xf86dri0-dev \
+            libxcb-xfixes0-dev \
+            libxcb-xinerama0-dev \
+            libxcb-xkb-dev \
+            libxcb-xtest0-dev \
+            libxcb-xv0-dev \
+            libxcb-xvmc0-dev \
+            libx11-xcb-dev
 
-      # - name: Install xcb
-      #   shell: bash
-      #   if: startsWith(matrix.job.os, 'ubuntu')
-      #   run: |
-      #     which xcb
+      - name: Install XCB
+        run: scripts/install_xcb.sh
 
       - name: Extract crate information
         shell: bash
