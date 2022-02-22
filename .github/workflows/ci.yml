@@ -132,7 +132,9 @@ jobs:
             libx11-xcb-dev
 
       - name: Install XCB
-        run: sudo scripts/install_xcb.sh
+        if: startsWith(matrix.job.os, 'ubuntu')
+        shell: bash
+        run: scripts/install_xcb.sh
 
       - name: Extract crate information
         shell: bash
