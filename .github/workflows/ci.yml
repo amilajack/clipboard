@@ -100,11 +100,11 @@ jobs:
             aarch64-unknown-linux-gnu) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
           esac
 
-      - name: Install xcp
+      - name: Install xcb
         shell: bash
         if: startsWith(matrix.job.os, 'ubuntu')
         run: |
-          sudo apt-get -y install libx11-dev xorg-dev libxcb-shape0-dev libxcb-xfixes0-dev pkg-config libasound2-dev libssl-dev cmake xclip libfreetype6-dev libexpat1-dev libxcb-composite0-dev xcb-dev
+          sudo apt-get -y install libx11-dev xorg-dev ; sudo apt-get -y install xcb libxcb-xkb-dev x11-xkb-utils libx11-xcb-dev libxkbcommon-x11-dev xvfb xclip
 
       - name: Extract crate information
         shell: bash
