@@ -104,6 +104,7 @@ jobs:
         shell: bash
         run: |
           echo "PROJECT_NAME=clipboard" >> $GITHUB_ENV
+          echo "PROJECT_BIN_NAME=cb" >> $GITHUB_ENV
           echo "PROJECT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)" >> $GITHUB_ENV
           echo "PROJECT_MAINTAINER=$(sed -n 's/^authors = \["\(.*\)"\]/\1/p' Cargo.toml)" >> $GITHUB_ENV
           echo "PROJECT_HOMEPAGE=$(sed -n 's/^homepage = "\(.*\)"/\1/p' Cargo.toml)" >> $GITHUB_ENV
@@ -154,7 +155,7 @@ jobs:
           # Setup paths
           BIN_DIR="${{ env.CICD_INTERMEDIATES_DIR }}/stripped-release-bin/"
           mkdir -p "${BIN_DIR}"
-          BIN_NAME="${{ env.PROJECT_NAME }}${EXE_suffix}"
+          BIN_NAME="${{ env.PROJECT_BIN_NAME }}${EXE_suffix}"
           BIN_PATH="${BIN_DIR}/${BIN_NAME}"
 
           # Copy the release build binary to the result location
