@@ -16,8 +16,8 @@ fn print() {
 }
 
 fn main() {
-    // Handle `cp ...` stdin cases
-    // echo 'foo' | cp
+    // Handle `cb ...` stdin cases
+    // echo 'foo' | cb
     if atty::isnt(Stream::Stdin) {
         let mut buffer = String::new();
         stdin().read_to_string(&mut buffer).unwrap();
@@ -25,11 +25,11 @@ fn main() {
         return;
     }
 
-    // Handle `cp ...` stdout cases
+    // Handle `cb ...` stdout cases
     match args().len() {
-        // Case of `cp`
+        // Case of `cb`
         1 => { return print() },
-        // Case of `cp my-file`
+        // Case of `cb my-file`
         2 => match args().nth(1) {
             Some(path) => {
                 let abs_path = PathBuf::from(path).canonicalize().unwrap();
