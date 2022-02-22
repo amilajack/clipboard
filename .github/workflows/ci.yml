@@ -188,7 +188,7 @@ jobs:
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
-          use-cross: ${{ matrix.job.use-cross }}
+          #use-cross: ${{ matrix.job.use-cross }}
           command: test
           args: --locked --target=${{ matrix.job.target }} ${{ steps.test-options.outputs.CARGO_TEST_OPTIONS}}
 
