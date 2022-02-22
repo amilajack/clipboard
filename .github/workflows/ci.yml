@@ -104,7 +104,7 @@ jobs:
         shell: bash
         if: startsWith(matrix.job.os, 'ubuntu')
         run: |
-          sudo apt-get -y install libx11-dev xorg-dev libxcb-shape0-dev libxcb-xfixes0-dev pkg-config libasound2-dev libssl-dev cmake xclip libfreetype6-dev libexpat1-dev libxcb-composite0-dev
+          sudo apt-get -y install libx11-dev xorg-dev libxcb-shape0-dev libxcb-xfixes0-dev pkg-config libasound2-dev libssl-dev cmake xclip libfreetype6-dev libexpat1-dev libxcb-composite0-dev xcb-dev
 
       - name: Extract crate information
         shell: bash
