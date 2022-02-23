@@ -55,14 +55,14 @@ jobs:
           - {
               os: ubuntu-latest,
               target: arm-unknown-linux-gnueabihf,
-              use-cross: true,
-              arch: armhf,
+              # use-cross: true,
+              # arch: armhf,
             }
           - {
               os: ubuntu-latest,
               target: arm-unknown-linux-musleabihf,
-              use-cross: true,
-              arch: armhf,
+              # use-cross: true,
+              # arch: armhf,
             }
           - {
               os: ubuntu-latest,
@@ -79,8 +79,8 @@ jobs:
           - {
               os: ubuntu-latest,
               target: i686-unknown-linux-musl,
-              use-cross: true,
-              arch: i386,
+              # use-cross: true,
+              # arch: i386,
             }
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
           - { os: ubuntu-latest, target: x86_64-unknown-linux-musl }
