@@ -2,7 +2,7 @@
 image = "xcb/arm64"
 
 [target.arm-unknown-linux-musleabihf]
-image = "xcb/arm64"
+image = "xcb/arm"
 
 [target.x86_64-unknown-linux-musl]
 image = "xcb/x86_64"

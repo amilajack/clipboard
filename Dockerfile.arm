@@ -1,0 +1,9 @@
+FROM rustembedded/cross:aarch64-unknown-linux-gnu-0.2.1
+
+RUN dpkg --add-architecture arm && \
+    dpkg --add-architecture i686 && \
+    dpkg --add-architecture armhf
+RUN apt-get update && apt-get install -y \
+    libx11-xcb-dev:arm \
+    libxcb-xfixes0-dev:arm \
+    libxcb-shape0-dev:arm
