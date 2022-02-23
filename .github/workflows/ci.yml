@@ -92,9 +92,20 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v2
 
-      - name: Build Docker
-        shell: bash
+      - name: Install xcb
         if: startsWith(matrix.job.os, 'ubuntu')
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install \
+            libgl1-mesa-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libx11-xcb-dev
+
+      - name: Build Docker
+        if: startsWith(matrix.job.os, 'ubuntu')
+        shell: bash
         run: docker build -t xcb/arm .
 
       - name: Install prerequisites
@@ -181,7 +192,7 @@ jobs:
         run: |
           # test only library unit tests and binary for arm-type targets
           unset CARGO_TEST_OPTIONS
-          unset CARGO_TEST_OPTIONS ; case ${{ matrix.job.target }} in arm-* | aarch64-*) CARGO_TEST_OPTIONS="--lib --bin ${PROJECT_NAME}" ;; esac;
+          unset CARGO_TEST_OPTIONS ; case ${{ matrix.job.target }} in arm-* | aarch64-*) CARGO_TEST_OPTIONS="--bin ${PROJECT_BIN_NAME}" ;; esac;
           echo ::set-output name=CARGO_TEST_OPTIONS::${CARGO_TEST_OPTIONS}
 
       - name: Run tests
