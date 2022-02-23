@@ -78,11 +78,11 @@ jobs:
           #     use-cross: true,
           #   }
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
-          # - {
-          #     os: ubuntu-latest,
-          #     target: x86_64-unknown-linux-musl,
-          #     use-cross: true,
-          #   }
+          - {
+              os: ubuntu-latest,
+              target: x86_64-unknown-linux-musl,
+              use-cross: true,
+            }
           - { os: macos-10.15, target: x86_64-apple-darwin }
           # - { os: windows-2019, target: i686-pc-windows-gnu         }  ## disabled; error: linker `i686-w64-mingw32-gcc` not found
           - { os: windows-2019, target: i686-pc-windows-msvc }
@@ -106,7 +106,9 @@ jobs:
       - name: Build Docker
         if: startsWith(matrix.job.os, 'ubuntu')
         shell: bash
-        run: docker build -t xcb/arm .
+        run: |
+          docker build -t xcb/x86_64 -f Dockerfile.x86_64 .
+          docker build -t xcb/arm64 -f Dockerfile.arm64 .
 
       - name: Install prerequisites
         shell: bash

@@ -1,17 +1,17 @@
 [target.aarch64-unknown-linux-gnu]
-image = "xcb/arm"
+image = "xcb/arm64"
 
 [target.arm-unknown-linux-musleabihf]
-image = "xcb/arm"
+image = "xcb/arm64"
 
 [target.x86_64-unknown-linux-musl]
-image = "xcb/arm"
+image = "xcb/x86_64"
 
 [target.i686-unknown-linux-gnu]
-image = "xcb/arm"
+image = "xcb/arm64"
 
 [target.arm-unknown-linux-gnueabihf]
-image = "xcb/arm"
+image = "xcb/arm64"
 
 [target.i686-unknown-linux-musl]
-image = "xcb/arm"
+image = "xcb/arm64"
