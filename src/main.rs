@@ -1,9 +1,9 @@
-use std::env::args;
-use std::fs;
-use std::path::PathBuf;
-use std::io::{Read, stdin};
 use atty::Stream;
 use copypasta::{ClipboardContext, ClipboardProvider};
+use std::env::args;
+use std::fs;
+use std::io::{stdin, Read};
+use std::path::PathBuf;
 
 fn write<T: AsRef<str>>(content: T) {
     let mut ctx: ClipboardContext = ClipboardContext::new().unwrap();
@@ -28,7 +28,7 @@ fn main() {
     // Handle `cb ...` stdout cases
     match args().len() {
         // Case of `cb`
-        1 => { return print() },
+        1 => return print(),
         // Case of `cb my-file`
         2 => match args().nth(1) {
             Some(path) => {
@@ -38,6 +38,6 @@ fn main() {
             }
             None => {}
         },
-        _ => panic!("unexpected number of args")
+        _ => panic!("unexpected number of args"),
     }
 }
