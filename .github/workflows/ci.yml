@@ -95,7 +95,7 @@ jobs:
       - name: Build Docker
         shell: bash
         if: startsWith(matrix.job.os, 'ubuntu')
-        run: docker build -t xcb:arm .
+        run: docker build -t xcb/arm .
 
       - name: Install prerequisites
         shell: bash
