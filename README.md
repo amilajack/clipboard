@@ -36,3 +36,13 @@ cb list
 cb peek 1
 cb p 1
 ```
+
+## Comparison
+
+
+|                | Single Command | Cross Platform    | Simple API | History Peek |
+| -------------- | -------------- | ----------------- | ---------- | ------------ |
+| clipboard      | ✅             | ✅                | ✅         | ✅           |
+| pbcopy/pbpaste | ❌             | ❌ (macOS only)   | ✅         | ❌           |
+| xclip          | ✅             | ❌ (linux only)   | ❌         | ❌           |
+| clip           | ✅             | ❌ (windows only) | ✅         | ❌           |
