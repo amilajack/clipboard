@@ -52,31 +52,31 @@ jobs:
       fail-fast: false
       matrix:
         job:
-          # - {
-          #     os: ubuntu-latest,
-          #     target: arm-unknown-linux-gnueabihf,
-          #     use-cross: true,
-          #   }
-          # - {
-          #     os: ubuntu-latest,
-          #     target: arm-unknown-linux-musleabihf,
-          #     use-cross: true,
-          #   }
+          - {
+              os: ubuntu-latest,
+              target: arm-unknown-linux-gnueabihf,
+              use-cross: true,
+            }
+          - {
+              os: ubuntu-latest,
+              target: arm-unknown-linux-musleabihf,
+              use-cross: true,
+            }
           - {
               os: ubuntu-latest,
               target: aarch64-unknown-linux-gnu,
               use-cross: true,
             }
-          # - {
-          #     os: ubuntu-latest,
-          #     target: i686-unknown-linux-gnu,
-          #     use-cross: true,
-          #   }
-          # - {
-          #     os: ubuntu-latest,
-          #     target: i686-unknown-linux-musl,
-          #     use-cross: true,
-          #   }
+          - {
+              os: ubuntu-latest,
+              target: i686-unknown-linux-gnu,
+              use-cross: true,
+            }
+          - {
+              os: ubuntu-latest,
+              target: i686-unknown-linux-musl,
+              use-cross: true,
+            }
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
           - {
               os: ubuntu-latest,
@@ -106,11 +106,20 @@ jobs:
       - name: Build Docker
         if: startsWith(matrix.job.os, 'ubuntu')
         shell: bash
+        # Generate a Dockerfile with the correct base image and target
         run: |
-          docker build -t xcb/x86_64 -f Dockerfile.x86_64 .
-          docker build -t xcb/arm64 -f Dockerfile.arm64 .
+          echo "
+            FROM rustembedded/cross:${{ matrix.job.target }}-0.2.1
+            RUN apt-get update && apt-get install -y \
+                libx11-xcb-dev \
+                libxcb-xfixes0-dev \
+                libxcb-shape0-dev
+          " > Dockerfile
+          docker build -t xcb/${{ matrix.job.target }} .
+          docker images
 
       - name: Install prerequisites
+        if: startsWith(matrix.job.os, 'ubuntu')
         shell: bash
         run: |
           case ${{ matrix.job.target }} in
