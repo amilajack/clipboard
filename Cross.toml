@@ -9,3 +9,9 @@ image = "xcb/arm"
 
 [target.i686-unknown-linux-gnu]
 image = "xcb/arm"
+
+[target.arm-unknown-linux-gnueabihf]
+image = "xcb/arm"
+
+[target.i686-unknown-linux-musl]
+image = "xcb/arm"
