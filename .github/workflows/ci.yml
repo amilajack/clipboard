@@ -56,32 +56,38 @@ jobs:
               os: ubuntu-latest,
               target: arm-unknown-linux-gnueabihf,
               use-cross: true,
+              arch: armhf,
             }
           - {
               os: ubuntu-latest,
               target: arm-unknown-linux-musleabihf,
               use-cross: true,
+              arch: armhf,
             }
           - {
               os: ubuntu-latest,
               target: aarch64-unknown-linux-gnu,
               use-cross: true,
+              arch: arm64,
             }
           - {
               os: ubuntu-latest,
               target: i686-unknown-linux-gnu,
               use-cross: true,
+              arch: armhf,
             }
           - {
               os: ubuntu-latest,
               target: i686-unknown-linux-musl,
               use-cross: true,
+              arch: armhf,
             }
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
           - {
               os: ubuntu-latest,
               target: x86_64-unknown-linux-musl,
               use-cross: true,
+              arch: armhf,
             }
           - { os: macos-10.15, target: x86_64-apple-darwin }
           # - { os: windows-2019, target: i686-pc-windows-gnu         }  ## disabled; error: linker `i686-w64-mingw32-gcc` not found
@@ -117,6 +123,9 @@ jobs:
           " > Dockerfile
           docker build -t xcb/${{ matrix.job.target }} .
           docker images
+          cat Dockerfile
+          dpkg --print-architecture
+          dpkg --print-foreign-architectures
 
       - name: Install prerequisites
         if: startsWith(matrix.job.os, 'ubuntu')
