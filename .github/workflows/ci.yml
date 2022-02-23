@@ -92,6 +92,11 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v2
 
+      - name: Build Docker
+        shell: bash
+        if: startsWith(matrix.job.os, 'ubuntu')
+        run: docker build -t xcb:arm .
+
       - name: Install prerequisites
         shell: bash
         run: |
@@ -99,42 +104,6 @@ jobs:
             arm-unknown-linux-*) sudo apt-get -y update ; sudo apt-get -y install gcc-arm-linux-gnueabihf ;;
             aarch64-unknown-linux-gnu) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
           esac
-
-      - name: Install xcb
-        shell: bash
-        if: startsWith(matrix.job.os, 'ubuntu')
-        run: |
-          sudo apt-get update
-          sudo apt-get install \
-            libgl1-mesa-dev \
-            libxcb-composite0-dev \
-            libxcb-damage0-dev \
-            libxcb-dpms0-dev \
-            libxcb-dri2-0-dev \
-            libxcb-dri3-dev \
-            libxcb-glx0-dev \
-            libxcb-present-dev \
-            libxcb-randr0-dev \
-            libxcb-record0-dev \
-            libxcb-render0-dev \
-            libxcb-res0-dev \
-            libxcb-screensaver0-dev \
-            libxcb-shape0-dev \
-            libxcb-shm0-dev \
-            libxcb-sync-dev \
-            libxcb-xf86dri0-dev \
-            libxcb-xfixes0-dev \
-            libxcb-xinerama0-dev \
-            libxcb-xkb-dev \
-            libxcb-xtest0-dev \
-            libxcb-xv0-dev \
-            libxcb-xvmc0-dev \
-            libx11-xcb-dev
-
-      - name: Install XCB
-        if: startsWith(matrix.job.os, 'ubuntu')
-        shell: bash
-        run: scripts/install_xcb.sh
 
       - name: Extract crate information
         shell: bash
