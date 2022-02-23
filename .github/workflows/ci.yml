@@ -56,13 +56,13 @@ jobs:
               os: ubuntu-latest,
               target: arm-unknown-linux-gnueabihf,
               use-cross: true,
-              arch: armhf,
+              arch: amd64,
             }
           - {
               os: ubuntu-latest,
               target: arm-unknown-linux-musleabihf,
               use-cross: true,
-              arch: armhf,
+              arch: amd64,
             }
           - {
               os: ubuntu-latest,
@@ -74,20 +74,20 @@ jobs:
               os: ubuntu-latest,
               target: i686-unknown-linux-gnu,
               use-cross: true,
-              arch: armhf,
+              arch: amd64,
             }
           - {
               os: ubuntu-latest,
               target: i686-unknown-linux-musl,
               use-cross: true,
-              arch: armhf,
+              arch: amd64,
             }
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
           - {
               os: ubuntu-latest,
               target: x86_64-unknown-linux-musl,
               use-cross: true,
-              arch: armhf,
+              arch: amd64,
             }
           - { os: macos-10.15, target: x86_64-apple-darwin }
           # - { os: windows-2019, target: i686-pc-windows-gnu         }  ## disabled; error: linker `i686-w64-mingw32-gcc` not found
@@ -116,10 +116,10 @@ jobs:
         run: |
           echo "
             FROM rustembedded/cross:${{ matrix.job.target }}-0.2.1
-            RUN apt-get update && apt-get install -y \
-                libx11-xcb-dev \
-                libxcb-xfixes0-dev \
-                libxcb-shape0-dev
+            RUN dpkg --add-architecture ${{ matrix.job.arch }} && apt-get update && apt-get install -y \
+                libx11-xcb-dev:${{ matrix.job.arch }} \
+                libxcb-xfixes0-dev:${{ matrix.job.arch }} \
+                libxcb-shape0-dev:${{ matrix.job.arch }}
           " > Dockerfile
           docker build -t xcb/${{ matrix.job.target }} .
           docker images
