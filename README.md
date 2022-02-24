@@ -13,10 +13,10 @@ cargo install clipboard-cli
 ## Usage
 
 ```bash
-# Copy to os clipbard
+# Copy file to clipbard
 cb package.json
-# Pipe to os clipboard
-cat package.json | cb
+
+# Pipe to clipboard
 echo 'Hello World!' | cb
 
 # Read clipboard contents
