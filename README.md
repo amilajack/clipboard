@@ -18,6 +18,7 @@ cb package.json
 
 # Pipe to clipboard
 echo 'Hello World!' | cb
+git diff | cb
 
 # Read clipboard contents
 cb | vim -
