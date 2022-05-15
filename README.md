@@ -6,6 +6,21 @@ A better command line clipboard
 
 ## Installation
 
+### macOS
+
+```bash
+brew install diskus
+```
+
+### Debian
+
+```bash
+wget "https://github.com/amilajack/clipboard/releases/download/v0.0.1/clipboard_0.0.1_amd64.deb"
+sudo dpkg -i clipboard_0.0.1_amd64.deb
+```
+
+### Other
+
 ```bash
 cargo install clipboard-cli
 ```
