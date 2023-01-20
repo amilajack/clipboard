@@ -40,9 +40,10 @@ cb p 1
 
 ## Comparison
 
-|                | Single Command | Cross Platform    | Simple API | History Peek |
-| -------------- | -------------- | ----------------- | ---------- | ------------ |
-| **clipboard**  | ✅             | ✅                | ✅         | ✅           |
-| pbcopy/pbpaste | ❌             | ❌ (macOS only)   | ✅         | ❌           |
-| xclip          | ✅             | ❌ (linux only)   | ❌         | ❌           |
-| clip           | ✅             | ❌ (windows only) | ✅         | ❌           |
+
+|                | clipboard | pbcopy/pbpaste  | xclip           | clip              |
+| -------------- | --------- | --------------- | --------------- | ----------------- |
+| Single Command | ✅        | ❌              | ✅              | ✅                |
+| Cross Platform | ✅        | ❌ (macOS only) | ❌ (linux only) | ❌ (windows only) |
+| Simple API     | ✅        | ✅              | ❌              | ✅                |
+| History Peak   | ✅        | ❌              | ❌              | ❌                |
