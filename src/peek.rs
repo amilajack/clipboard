@@ -56,7 +56,7 @@ enum Outcome {
 }
 
 struct App<'a> {
-    /// Newest first.
+    /// The most frecent first.
     entries: Vec<Entry>,
     /// Lowercased copies of `entries`, for case-insensitive search.
     lowercase: Vec<String>,
@@ -75,7 +75,9 @@ struct App<'a> {
 
 impl<'a> App<'a> {
     fn new(mut entries: Vec<Entry>, highlighter: &'a Highlighter, now: u64) -> Self {
+        // The most frecent first, and of two equals, the newer.
         entries.reverse();
+        entries.sort_by(|a, b| b.frecency(now).total_cmp(&a.frecency(now)));
         let lowercase = entries
             .iter()
             .map(|entry| entry.text.to_lowercase())
@@ -130,8 +132,8 @@ impl<'a> App<'a> {
             KeyCode::Down if shift => self.scroll_by(1),
             KeyCode::Up => self.move_by(-1),
             KeyCode::Down => self.move_by(1),
-            // As in a shell, Ctrl-R searches further back and Ctrl-S comes
-            // forward again.
+            // As in a shell's history search, Ctrl-R moves on to the next
+            // match and Ctrl-S back to the previous one.
             KeyCode::Char('r' | 'n') if ctrl => self.move_by(1),
             KeyCode::Char('s' | 'p') if ctrl => self.move_by(-1),
             KeyCode::PageUp => self.scroll_by(-page),
@@ -170,8 +172,8 @@ impl<'a> App<'a> {
         self.query.chars().any(char::is_uppercase)
     }
 
-    /// Finds the entries that match the search, newest first, and selects the
-    /// newest.
+    /// Finds the entries that match the search, keeping them in frecency
+    /// order, and selects the first.
     fn filter(&mut self) {
         let case_sensitive = self.case_sensitive();
         let query = if case_sensitive {
@@ -316,6 +318,9 @@ impl<'a> App<'a> {
             1 => "1 line".to_owned(),
             n => format!("{} lines", n),
         });
+        if entry.uses > 1 {
+            title.push(format!("copied {} times", entry.uses));
+        }
         let mut title_spans = Vec::new();
         push_span(
             &mut title_spans,
@@ -437,6 +442,8 @@ mod tests {
                 text: (*text).to_owned(),
                 source: None,
                 time: NOW - 60 * (texts.len() - i) as u64,
+                uses: 1,
+                score: 1.0,
             })
             .collect();
         App::new(entries, test_highlighter(), NOW)
@@ -565,6 +572,8 @@ mod tests {
                 text: "fn main() {\n    println!(\"hi\");\n}".to_owned(),
                 source: Some("/src/main.rs".into()),
                 time: NOW - 120,
+                uses: 1,
+                score: 1.0,
             }],
             test_highlighter(),
             NOW,
@@ -601,6 +610,60 @@ mod tests {
         let screen = render(&mut app, 100, 10);
         assert!(!screen.contains('\u{1b}'));
         assert!(screen.contains("\u{fffd}[2Jgotcha"), "{}", screen);
+    }
+
+    /// An entry used `uses` times, last `idle` seconds ago, each use then.
+    fn used(text: &str, uses: u32, idle: u64) -> Entry {
+        Entry {
+            text: text.to_owned(),
+            source: None,
+            time: NOW - idle,
+            uses,
+            score: uses.into(),
+        }
+    }
+
+    #[test]
+    fn entries_used_often_come_before_newer_ones() {
+        let app = App::new(
+            vec![used("favorite", 5, 3600), used("once", 1, 60)],
+            test_highlighter(),
+            NOW,
+        );
+        assert_eq!(matched(&app), ["favorite", "once"]);
+        assert_eq!(selected(&app), "favorite");
+    }
+
+    #[test]
+    fn favorites_sink_once_they_go_unused() {
+        let app = App::new(
+            vec![used("old favorite", 20, 10 * 86400), used("once", 1, 60)],
+            test_highlighter(),
+            NOW,
+        );
+        assert_eq!(matched(&app), ["once", "old favorite"]);
+    }
+
+    #[test]
+    fn matches_stay_in_frecency_order() {
+        let mut app = App::new(
+            vec![
+                used("git push", 4, 3600),
+                used("ls", 9, 60),
+                used("git status", 1, 60),
+            ],
+            test_highlighter(),
+            NOW,
+        );
+        type_text(&mut app, "git");
+        assert_eq!(matched(&app), ["git push", "git status"]);
+    }
+
+    #[test]
+    fn the_preview_says_how_often_an_entry_was_copied() {
+        let mut app = App::new(vec![used("hello", 3, 60)], test_highlighter(), NOW);
+        let screen = render(&mut app, 100, 10);
+        assert!(screen.contains("copied 3 times"), "{}", screen);
     }
 
     #[test]
