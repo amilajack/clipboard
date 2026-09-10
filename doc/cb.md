@@ -24,3 +24,7 @@ cb | vim -
 **Search clipboard contents**
 
 cb | grep hello
+
+**Search clipboard history and copy an entry again**
+
+cb peek
