@@ -60,6 +60,27 @@ read: `~/.local/share/cb/history.jsonl` on Linux,
 somewhere else, or to an empty string to turn history off. The preview theme
 comes from `CB_THEME`, or else `BAT_THEME`.
 
+## Completions
+
+`cb` can tab-complete its commands, options and file names in bash, zsh and
+fish. Turn it on with one line in your shell's config:
+
+```bash
+# ~/.bashrc
+eval "$(cb completions bash)"
+
+# ~/.zshrc, after compinit
+source <(cb completions zsh)
+```
+
+In fish, save the script where fish looks for completions:
+
+```fish
+cb completions fish > ~/.config/fish/completions/cb.fish
+```
+
+The Debian package installs all three for you.
+
 ## Upcoming
 
 ```bash
