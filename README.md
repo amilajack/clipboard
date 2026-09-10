@@ -88,6 +88,27 @@ or anything else in `cb`: the `x-kde-passwordManagerHint` type on Linux, the
 `ExcludeClipboardContentFromMonitorProcessing` and its relatives on Windows.
 Only text is recorded, and a copy replaced within 2 seconds may be missed.
 
+## Completions
+
+`cb` can tab-complete its commands, options and file names in bash, zsh and
+fish. Turn it on with one line in your shell's config:
+
+```bash
+# ~/.bashrc
+eval "$(cb completions bash)"
+
+# ~/.zshrc, after compinit
+source <(cb completions zsh)
+```
+
+In fish, save the script where fish looks for completions:
+
+```fish
+cb completions fish > ~/.config/fish/completions/cb.fish
+```
+
+The Debian package installs all three for you.
+
 ## Upcoming
 
 ```bash

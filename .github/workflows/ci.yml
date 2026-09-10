@@ -159,6 +159,9 @@ jobs:
           # Man page
           cp 'doc/${{ env.PROJECT_BIN_NAME }}.1' "$ARCHIVE_DIR"
 
+          # Shell completions
+          cp -r completions "$ARCHIVE_DIR"
+
           # README, LICENSE and CHANGELOG files
           cp "README.md" "LICENSE" "CHANGELOG.md" "$ARCHIVE_DIR"
 
@@ -201,6 +204,11 @@ jobs:
           # Man page
           install -Dm644 'doc/${{ env.PROJECT_BIN_NAME }}.1' "${DPKG_DIR}/usr/share/man/man1/${{ env.PROJECT_BIN_NAME }}.1"
           gzip -n --best "${DPKG_DIR}/usr/share/man/man1/${{ env.PROJECT_BIN_NAME }}.1"
+
+          # Shell completions, where each shell looks for them
+          install -Dm644 completions/cb.bash "${DPKG_DIR}/usr/share/bash-completion/completions/${{ env.PROJECT_BIN_NAME }}"
+          install -Dm644 completions/_cb "${DPKG_DIR}/usr/share/zsh/vendor-completions/_${{ env.PROJECT_BIN_NAME }}"
+          install -Dm644 completions/cb.fish "${DPKG_DIR}/usr/share/fish/vendor_completions.d/${{ env.PROJECT_BIN_NAME }}.fish"
 
           # README and LICENSE
           install -Dm644 "README.md" "${DPKG_DIR}/usr/share/doc/${DPKG_BASENAME}/README.md"

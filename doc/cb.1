@@ -10,6 +10,8 @@ cb \- a better command line clipboard
 \f[B]cb peek\f[R]
 .br
 \f[B]cb watch\f[R] [\f[B]\-\-install\f[R] | \f[B]\-\-uninstall\f[R]]
+.br
+\f[B]cb completions\f[R] \f[I]SHELL\f[R]
 .SH DESCRIPTION
 .PP
 Copy \f[I]FILE\f[R], or whatever is piped in, to the system clipboard.
@@ -41,6 +43,13 @@ The syntax is picked from the name of the file the entry was copied
 from, or failing that, from its content.
 Needs an interactive terminal.
 To copy a file named \f[I]peek\f[R], use \f[B]cb ./peek\f[R].
+.TP
+\f[B]completions\f[R] \f[I]SHELL\f[R]
+Print the tab completion script for \f[I]SHELL\f[R], which is
+\f[B]bash\f[R], \f[B]zsh\f[R] or \f[B]fish\f[R].
+It completes commands, options and file names.
+To copy a file named \f[I]completions\f[R], use
+\f[B]cb ./completions\f[R].
 .PP
 In \f[B]peek\f[R]:
 .TP
@@ -119,6 +128,10 @@ cb peek
 \f[B]Record every copy, from now on and at every login\f[R]
 .PP
 cb watch \-\-install
+.PP
+\f[B]Turn on tab completion in bash, from \[ti]/.bashrc\f[R]
+.PP
+eval \[dq]$(cb completions bash)\[dq]
 .SH ENVIRONMENT
 .TP
 \f[B]CB_HISTORY_FILE\f[R]

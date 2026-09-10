@@ -1,5 +1,5 @@
 use std::env;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
@@ -7,8 +7,10 @@ use std::process::ExitCode;
 
 use arboard::Clipboard;
 
+use crate::completions::Shell;
 use crate::highlight::Highlighter;
 
+mod completions;
 mod highlight;
 mod history;
 mod peek;
@@ -19,6 +21,7 @@ const USAGE: &str = "\
 Usage: cb [FILE]
        cb peek
        cb watch [--install | --uninstall]
+       cb completions SHELL
 
 Copy FILE, or whatever is piped in, to the system clipboard.
 With no FILE and nothing piped in, print the clipboard.
@@ -28,6 +31,7 @@ Commands:
   watch              Record everything copied, checking every 2 seconds
     --install        Also start watching whenever you log in
     --uninstall      Stop watching, now and at login
+  completions SHELL  Print tab completion for bash, zsh or fish
 
 Examples:
   cb package.json    Copy a file
@@ -59,50 +63,67 @@ enum Action {
     Watch,
     WatchInstall,
     WatchUninstall,
+    Completions(Shell),
 }
 
 /// Decides what to do from the arguments (excluding the program name).
 ///
 /// An explicit file always wins over stdin, so `cb notes.txt` behaves the same
 /// in a script or IDE task, where stdin is not a terminal, as it does at a prompt.
-/// `peek` and `watch` are commands, so files by those names are copied as
-/// `cb ./peek` and `cb ./watch`.
+/// `peek`, `watch` and `completions` are commands, so files by those names are
+/// copied as `cb ./peek`, `cb ./watch` and `cb ./completions`.
 fn parse_args<I>(args: I, stdin_is_terminal: bool) -> Result<Action, String>
 where
     I: IntoIterator<Item = OsString>,
 {
     let mut args = args.into_iter();
-    let first = args.next();
-    // `watch` is the one command that takes an option.
-    let option = match first.as_deref() {
-        Some(command) if command == OsStr::new("watch") => args.next(),
-        _ => None,
-    };
-    if let Some(extra) = args.next() {
-        return Err(format!("unexpected argument '{}'", extra.to_string_lossy()));
-    }
-
-    let arg = match first {
+    let arg = match args.next() {
         Some(arg) => arg,
         None if stdin_is_terminal => return Ok(Action::Print),
         None => return Ok(Action::CopyStdin),
     };
-    match arg.to_str() {
-        Some("-h" | "--help") => Ok(Action::Help),
-        Some("-V" | "--version") => Ok(Action::Version),
-        Some("peek") => Ok(Action::Peek),
-        Some("watch") => match option.as_deref().map(OsStr::to_string_lossy).as_deref() {
-            None => Ok(Action::Watch),
-            Some("--install") => Ok(Action::WatchInstall),
-            Some("--uninstall") => Ok(Action::WatchUninstall),
-            Some(flag) if flag.starts_with('-') => Err(format!("unknown option '{}'", flag)),
-            Some(extra) => Err(format!("unexpected argument '{}'", extra)),
+    let action = match arg.to_str() {
+        Some("-h" | "--help") => Action::Help,
+        Some("-V" | "--version") => Action::Version,
+        Some("peek") => Action::Peek,
+        Some("watch") => match args.next() {
+            None => Action::Watch,
+            Some(option) => match option.to_str() {
+                Some("--install") => Action::WatchInstall,
+                Some("--uninstall") => Action::WatchUninstall,
+                Some(flag) if flag.starts_with('-') => {
+                    return Err(format!("unknown option '{}'", flag));
+                }
+                _ => {
+                    return Err(format!(
+                        "unexpected argument '{}'",
+                        option.to_string_lossy()
+                    ));
+                }
+            },
         },
-        Some(flag) if flag.len() > 1 && flag.starts_with('-') => {
-            Err(format!("unknown option '{}'", flag))
+        Some("completions") => {
+            let name = args
+                .next()
+                .ok_or_else(|| format!("completions needs a shell: {}", completions::SHELLS))?;
+            let shell = name.to_str().and_then(Shell::from_name).ok_or_else(|| {
+                format!(
+                    "unknown shell '{}'; expected {}",
+                    name.to_string_lossy(),
+                    completions::SHELLS
+                )
+            })?;
+            Action::Completions(shell)
         }
-        _ => Ok(Action::CopyFile(PathBuf::from(arg))),
+        Some(flag) if flag.len() > 1 && flag.starts_with('-') => {
+            return Err(format!("unknown option '{}'", flag));
+        }
+        _ => Action::CopyFile(PathBuf::from(arg)),
+    };
+    if let Some(extra) = args.next() {
+        return Err(format!("unexpected argument '{}'", extra.to_string_lossy()));
     }
+    Ok(action)
 }
 
 /// Drops one trailing line ending.
@@ -149,6 +170,10 @@ fn run(action: Action) -> Result<(), String> {
         Action::Watch => watch::run(),
         Action::WatchInstall => watch::install(),
         Action::WatchUninstall => watch::uninstall(),
+        Action::Completions(shell) => {
+            print!("{}", shell.script());
+            Ok(())
+        }
     }
 }
 
@@ -369,6 +394,40 @@ mod tests {
         assert_eq!(
             parse(&["./peek"], true),
             Ok(Action::CopyFile(PathBuf::from("./peek")))
+        );
+    }
+
+    #[test]
+    fn completions_takes_a_shell() {
+        for (name, shell) in [
+            ("bash", Shell::Bash),
+            ("zsh", Shell::Zsh),
+            ("fish", Shell::Fish),
+        ] {
+            assert_eq!(
+                parse(&["completions", name], true),
+                Ok(Action::Completions(shell))
+            );
+        }
+        assert_eq!(
+            parse(&["./completions"], true),
+            Ok(Action::CopyFile(PathBuf::from("./completions")))
+        );
+    }
+
+    #[test]
+    fn completions_needs_one_known_shell() {
+        assert_eq!(
+            parse(&["completions"], true),
+            Err("completions needs a shell: bash, zsh or fish".into())
+        );
+        assert_eq!(
+            parse(&["completions", "tcsh"], true),
+            Err("unknown shell 'tcsh'; expected bash, zsh or fish".into())
+        );
+        assert_eq!(
+            parse(&["completions", "zsh", "bash"], true),
+            Err("unexpected argument 'bash'".into())
         );
     }
 

@@ -1,0 +1,50 @@
+#compdef cb
+
+# Completion for cb in zsh. Load it by adding this line to ~/.zshrc, after
+# compinit:
+#   source <(cb completions zsh)
+# or save it as _cb in a directory on $fpath.
+
+_cb() {
+  local -a commands=(
+    'peek:search clipboard history and copy an entry again'
+    'watch:record everything copied, checking every 2 seconds'
+    'completions:print the completion script for a shell'
+  )
+  local -a options=(
+    '-h:print help' '--help:print help'
+    '-V:print version' '--version:print version'
+  )
+  local -a shells=(bash zsh fish)
+  local -a watch_options=(
+    '--install:also start watching whenever you log in'
+    '--uninstall:stop watching, now and at login'
+  )
+  local ret=1
+
+  case $CURRENT in
+    2)
+      if [[ $PREFIX == -* ]]; then
+        _describe -t options option options && ret=0
+      else
+        _describe -t commands command commands && ret=0
+        _files && ret=0
+      fi
+      ;;
+    3)
+      if [[ $words[2] == completions ]]; then
+        _describe -t shells shell shells && ret=0
+      elif [[ $words[2] == watch ]]; then
+        _describe -t options option watch_options && ret=0
+      fi
+      ;;
+  esac
+  return ret
+}
+
+# Autoloaded from $fpath, this file is the body of _cb; sourced, it registers it.
+if [[ $funcstack[1] == _cb ]]; then
+  _cb "$@"
+else
+  compdef _cb cb
+fi
