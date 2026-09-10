@@ -1,7 +1,7 @@
 name: CICD
 
 env:
-  MIN_SUPPORTED_RUST_VERSION: "1.58.0"
+  MIN_SUPPORTED_RUST_VERSION: "1.59.0"
   CARGO_TERM_COLOR: "always"
   CICD_INTERMEDIATES_DIR: "_cicd-intermediates"
 
@@ -14,122 +14,77 @@ on:
     tags:
       - "*"
 
+# Supersede an in-flight run when new commits land on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   min_version:
     name: Minimum supported rust version
-    runs-on: macos-10.15
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v2
-
-      - name: Install rust toolchain (v${{ env.MIN_SUPPORTED_RUST_VERSION }})
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ env.MIN_SUPPORTED_RUST_VERSION }}
-          default: true
-          profile: minimal # minimal component installation (ie, no documentation)
-          components: clippy, rustfmt
-      - name: Ensure `cargo fmt` has been run
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: -- --check
-      - name: Run clippy (on minimum supported rust version to prevent warnings we can't fix)
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --locked --all-targets --all-features
-      - name: Run tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --locked
-
-  build:
-    name: ${{ matrix.job.os }} (${{ matrix.job.target }})
-    runs-on: ${{ matrix.job.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        job:
-          # - {
-          #     os: ubuntu-latest,
-          #     target: arm-unknown-linux-gnueabihf,
-          #     use-cross: true,
-          #     arch: armhf,
-          #   }
-          # - {
-          #     os: ubuntu-latest,
-          #     target: arm-unknown-linux-musleabihf,
-          #     use-cross: true,
-          #     arch: armhf,
-          #   }
-          - {
-              os: ubuntu-latest,
-              target: aarch64-unknown-linux-gnu,
-              use-cross: true,
-              arch: arm64,
-            }
-          - {
-              os: ubuntu-latest,
-              target: i686-unknown-linux-gnu,
-              use-cross: true,
-              arch: i386,
-            }
-          # - {
-          #     os: ubuntu-latest,
-          #     target: i686-unknown-linux-musl,
-          #     use-cross: true,
-          #     arch: i386,
-          #   }
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl }
-          - { os: macos-10.15, target: x86_64-apple-darwin }
-          # - { os: windows-2019, target: i686-pc-windows-gnu         }  ## disabled; error: linker `i686-w64-mingw32-gcc` not found
-          - { os: windows-2019, target: i686-pc-windows-msvc }
-          - { os: windows-2019, target: x86_64-pc-windows-gnu }
-          - { os: windows-2019, target: x86_64-pc-windows-msvc }
-    steps:
-      - name: Checkout source code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install xcb
-        if: startsWith(matrix.job.os, 'ubuntu') && matrix.job.use-cross != true
-        shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends \
+          sudo apt-get install --no-install-recommends -y \
             libgl1-mesa-dev \
             libxcb-shape0-dev \
             libxcb-xfixes0-dev \
             libx11-xcb-dev
 
-      - name: Build Docker
-        if: startsWith(matrix.job.os, 'ubuntu') && matrix.job.use-cross == true
-        shell: bash
-        # Generate a Dockerfile with the correct base image and target
-        run: |
-          echo "
-            FROM rustembedded/cross:${{ matrix.job.target }}-0.2.1
-            RUN dpkg --add-architecture ${{ matrix.job.arch }} && apt-get update && apt-get install -y \
-                libx11-xcb-dev:${{ matrix.job.arch }} \
-                libxcb-xfixes0-dev:${{ matrix.job.arch }} \
-                libxcb-shape0-dev:${{ matrix.job.arch }}
-          " > Dockerfile
-          docker build -t xcb/${{ matrix.job.target }} .
-          docker images
-          cat Dockerfile
-          dpkg --print-architecture
-          dpkg --print-foreign-architectures
+      - name: Install rust toolchain (v${{ env.MIN_SUPPORTED_RUST_VERSION }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.MIN_SUPPORTED_RUST_VERSION }}
+          components: clippy, rustfmt
 
-      - name: Install prerequisites
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Ensure `cargo fmt` has been run
+        run: cargo fmt -- --check
+
+      - name: Run clippy (on minimum supported rust version to prevent warnings we can't fix)
+        run: cargo clippy --locked --all-targets --all-features
+
+      - name: Run tests
+        run: cargo test --locked
+
+  build:
+    name: ${{ matrix.job.os }} (${{ matrix.job.target }})
+    runs-on: ${{ matrix.job.os }}
+    # Needed by the release step, which uploads assets to the tag's release.
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every target builds natively on an ARM runner, so there is no
+        # cross-compilation, no qemu and no custom Docker image involved.
+        job:
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc }
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install xcb
         if: startsWith(matrix.job.os, 'ubuntu')
-        shell: bash
         run: |
-          case ${{ matrix.job.target }} in
-            arm-unknown-linux-*) sudo apt-get -y update ; sudo apt-get -y install gcc-arm-linux-gnueabihf ;;
-            aarch64-unknown-linux-gnu) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
-          esac
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libgl1-mesa-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libx11-xcb-dev
 
       - name: Extract crate information
         shell: bash
@@ -139,14 +94,17 @@ jobs:
           echo "PROJECT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)" >> $GITHUB_ENV
           echo "PROJECT_MAINTAINER=$(sed -n 's/^authors = \["\(.*\)"\]/\1/p' Cargo.toml)" >> $GITHUB_ENV
           echo "PROJECT_HOMEPAGE=$(sed -n 's/^homepage = "\(.*\)"/\1/p' Cargo.toml)" >> $GITHUB_ENV
+          echo "PROJECT_DESCRIPTION=$(sed -n 's/^description = "\(.*\)"/\1/p' Cargo.toml)" >> $GITHUB_ENV
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: ${{ matrix.job.target }}
-          override: true
-          profile: minimal # minimal component installation (ie, no documentation)
+          targets: ${{ matrix.job.target }}
+
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.job.target }}
 
       - name: Show version information (Rust, cargo, GCC)
         shell: bash
@@ -159,11 +117,8 @@ jobs:
           rustc -V
 
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: ${{ matrix.job.use-cross }}
-          command: build
-          args: --locked --release --target=${{ matrix.job.target }}
+        shell: bash
+        run: cargo build --locked --release --target=${{ matrix.job.target }}
 
       - name: Strip debug information from executable
         id: strip
@@ -175,11 +130,10 @@ jobs:
             *-pc-windows-*) EXE_suffix=".exe" ;;
           esac;
 
-          # Figure out what strip tool to use if any
+          # The MSVC toolchain has no `strip`; everything else builds natively,
+          # so the host's own `strip` is the right one.
           STRIP="strip"
           case ${{ matrix.job.target }} in
-            arm-unknown-linux-*) STRIP="arm-linux-gnueabihf-strip" ;;
-            aarch64-unknown-linux-gnu) STRIP="aarch64-linux-gnu-strip" ;;
             *-pc-windows-msvc) STRIP="" ;;
           esac;
 
@@ -198,24 +152,12 @@ jobs:
           fi
 
           # Let subsequent steps know where to find the (stripped) bin
-          echo ::set-output name=BIN_PATH::${BIN_PATH}
-          echo ::set-output name=BIN_NAME::${BIN_NAME}
-
-      - name: Set testing options
-        id: test-options
-        shell: bash
-        run: |
-          # test only library unit tests and binary for arm-type targets
-          unset CARGO_TEST_OPTIONS
-          unset CARGO_TEST_OPTIONS ; case ${{ matrix.job.target }} in arm-* | aarch64-*) CARGO_TEST_OPTIONS="--bin ${PROJECT_BIN_NAME}" ;; esac;
-          echo ::set-output name=CARGO_TEST_OPTIONS::${CARGO_TEST_OPTIONS}
+          echo "BIN_PATH=${BIN_PATH}" >> $GITHUB_OUTPUT
+          echo "BIN_NAME=${BIN_NAME}" >> $GITHUB_OUTPUT
 
       - name: Run tests
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: ${{ matrix.job.use-cross }}
-          command: test
-          args: --locked --target=${{ matrix.job.target }} ${{ steps.test-options.outputs.CARGO_TEST_OPTIONS}}
+        shell: bash
+        run: cargo test --locked --target=${{ matrix.job.target }}
 
       - name: Create tarball
         id: package
@@ -224,7 +166,7 @@ jobs:
           PKG_suffix=".tar.gz" ; case ${{ matrix.job.target }} in *-pc-windows-*) PKG_suffix=".zip" ;; esac;
           PKG_BASENAME=${PROJECT_NAME}-v${PROJECT_VERSION}-${{ matrix.job.target }}
           PKG_NAME=${PKG_BASENAME}${PKG_suffix}
-          echo ::set-output name=PKG_NAME::${PKG_NAME}
+          echo "PKG_NAME=${PKG_NAME}" >> $GITHUB_OUTPUT
 
           PKG_STAGING="${{ env.CICD_INTERMEDIATES_DIR }}/package"
           ARCHIVE_DIR="${PKG_STAGING}/${PKG_BASENAME}/"
@@ -248,7 +190,7 @@ jobs:
           popd >/dev/null
 
           # Let subsequent steps know where to find the compressed package
-          echo ::set-output name=PKG_PATH::"${PKG_STAGING}/${PKG_NAME}"
+          echo "PKG_PATH=${PKG_STAGING}/${PKG_NAME}" >> $GITHUB_OUTPUT
 
       - name: Create Debian package
         id: debian-package
@@ -261,21 +203,16 @@ jobs:
           mkdir -p "${DPKG_DIR}"
 
           DPKG_BASENAME=${PROJECT_NAME}
-          DPKG_CONFLICTS=${PROJECT_NAME}-musl
-          case ${{ matrix.job.target }} in *-musl) DPKG_BASENAME=${PROJECT_NAME}-musl ; DPKG_CONFLICTS=${PROJECT_NAME} ;; esac;
           DPKG_VERSION=${PROJECT_VERSION}
 
           unset DPKG_ARCH
           case ${{ matrix.job.target }} in
             aarch64-*-linux-*) DPKG_ARCH=arm64 ;;
-            arm-*-linux-*hf) DPKG_ARCH=armhf ;;
-            i686-*-linux-*) DPKG_ARCH=i686 ;;
-            x86_64-*-linux-*) DPKG_ARCH=amd64 ;;
             *) DPKG_ARCH=notset ;;
           esac;
 
           DPKG_NAME="${DPKG_BASENAME}_${DPKG_VERSION}_${DPKG_ARCH}.deb"
-          echo ::set-output name=DPKG_NAME::${DPKG_NAME}
+          echo "DPKG_NAME=${DPKG_NAME}" >> $GITHUB_OUTPUT
 
           # Binary
           install -Dm755 "${{ steps.strip.outputs.BIN_PATH }}" "${DPKG_DIR}/usr/bin/${{ steps.strip.outputs.BIN_NAME }}"
@@ -338,24 +275,23 @@ jobs:
           Homepage: ${{ env.PROJECT_HOMEPAGE }}
           Architecture: ${DPKG_ARCH}
           Provides: ${{ env.PROJECT_NAME }}
-          Conflicts: ${DPKG_CONFLICTS}
-          Description: Minimal and fast alternative to 'du -sh'.
+          Description: ${{ env.PROJECT_DESCRIPTION }}
           EOF
 
           DPKG_PATH="${DPKG_STAGING}/${DPKG_NAME}"
-          echo ::set-output name=DPKG_PATH::${DPKG_PATH}
+          echo "DPKG_PATH=${DPKG_PATH}" >> $GITHUB_OUTPUT
 
           # build dpkg
           fakeroot dpkg-deb --build "${DPKG_DIR}" "${DPKG_PATH}"
 
       - name: "Artifact upload: tarball"
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.package.outputs.PKG_NAME }}
           path: ${{ steps.package.outputs.PKG_PATH }}
 
       - name: "Artifact upload: Debian package"
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         if: steps.debian-package.outputs.DPKG_NAME
         with:
           name: ${{ steps.debian-package.outputs.DPKG_NAME }}
@@ -366,10 +302,10 @@ jobs:
         shell: bash
         run: |
           unset IS_RELEASE ; if [[ $GITHUB_REF =~ ^refs/tags/v[0-9].* ]]; then IS_RELEASE='true' ; fi
-          echo ::set-output name=IS_RELEASE::${IS_RELEASE}
+          echo "IS_RELEASE=${IS_RELEASE}" >> $GITHUB_OUTPUT
 
       - name: Publish archives and packages
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         if: steps.is-release.outputs.IS_RELEASE
         with:
           files: |
