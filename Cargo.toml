@@ -18,3 +18,11 @@ path = "src/main.rs"
 
 [dependencies]
 arboard = { version = "3.6", default-features = false, features = ["wayland-data-control"] }
+crossterm = { version = "0.29", default-features = false, features = ["events", "windows"] }
+dirs = "6.0"
+ratatui = { version = "0.30", default-features = false, features = ["crossterm_0_29", "layout-cache"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy"] }
+# bat's syntaxes and themes, so previews look the way they do in `bat`.
+two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }

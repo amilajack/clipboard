@@ -6,6 +6,8 @@ use std::process::{Command, Output};
 fn cb(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_cb"))
         .args(args)
+        // Keep tests out of the real clipboard history.
+        .env("CB_HISTORY_FILE", "")
         .output()
         .expect("failed to run cb")
 }
@@ -25,6 +27,27 @@ fn help_prints_usage() {
         assert!(output.status.success(), "{}", stderr(&output));
         assert!(stdout(&output).starts_with("Usage: cb [FILE]"));
     }
+}
+
+#[test]
+fn help_mentions_peek() {
+    let output = cb(&["--help"]);
+    assert!(stdout(&output).contains("cb peek"));
+}
+
+#[test]
+fn peek_needs_a_terminal() {
+    // `output()` gives the child a null stdin and piped stdout.
+    let output = cb(&["peek"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(stderr(&output), "cb: peek needs an interactive terminal\n");
+}
+
+#[test]
+fn peek_takes_no_arguments() {
+    let output = cb(&["peek", "1"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(stderr(&output).contains("unexpected argument '1'"));
 }
 
 #[test]

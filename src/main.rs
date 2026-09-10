@@ -2,21 +2,32 @@ use std::env;
 use std::ffi::OsString;
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use arboard::Clipboard;
 
+use crate::highlight::Highlighter;
+
+mod highlight;
+mod history;
+mod peek;
+
 const USAGE: &str = "\
 Usage: cb [FILE]
+       cb peek
 
 Copy FILE, or whatever is piped in, to the system clipboard.
 With no FILE and nothing piped in, print the clipboard.
+
+Commands:
+  peek               Search clipboard history and copy an entry again
 
 Examples:
   cb package.json    Copy a file
   git diff | cb      Copy piped input
   cb | grep hello    Search the clipboard
+  cb peek            Browse what you copied before
 
 Options:
   -h, --help         Print help
@@ -37,12 +48,14 @@ enum Action {
     Print,
     CopyFile(PathBuf),
     CopyStdin,
+    Peek,
 }
 
 /// Decides what to do from the arguments (excluding the program name).
 ///
 /// An explicit file always wins over stdin, so `cb notes.txt` behaves the same
 /// in a script or IDE task, where stdin is not a terminal, as it does at a prompt.
+/// `peek` is a command, so a file by that name is copied with `cb ./peek`.
 fn parse_args<I>(args: I, stdin_is_terminal: bool) -> Result<Action, String>
 where
     I: IntoIterator<Item = OsString>,
@@ -61,6 +74,7 @@ where
     match arg.to_str() {
         Some("-h" | "--help") => Ok(Action::Help),
         Some("-V" | "--version") => Ok(Action::Version),
+        Some("peek") => Ok(Action::Peek),
         Some(flag) if flag.len() > 1 && flag.starts_with('-') => {
             Err(format!("unknown option '{}'", flag))
         }
@@ -93,22 +107,64 @@ fn run(action: Action) -> Result<(), String> {
         Action::CopyFile(path) => {
             let text =
                 fs::read_to_string(&path).map_err(|e| format!("{}: {}", path.display(), e))?;
-            copy(strip_trailing_newline(&text))
+            let text = strip_trailing_newline(&text);
+            copy(text)?;
+            remember(text, Some(&path));
+            Ok(())
         }
         Action::CopyStdin => {
             let mut text = String::new();
             io::stdin()
                 .read_to_string(&mut text)
                 .map_err(|e| format!("stdin: {}", e))?;
-            copy(strip_trailing_newline(&text))
+            let text = strip_trailing_newline(&text);
+            copy(text)?;
+            remember(text, None);
+            Ok(())
         }
+        Action::Peek => peek(),
     }
+}
+
+/// Adds text to history. Failing to is worth a warning, not a failed copy.
+fn remember(text: &str, source: Option<&Path>) {
+    if let Err(message) = history::record(text, source) {
+        eprintln!("cb: warning: could not save history: {}", message);
+    }
+}
+
+fn peek() -> Result<(), String> {
+    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+        return Err("peek needs an interactive terminal".to_owned());
+    }
+    let path = history::path().ok_or(format!(
+        "clipboard history is turned off because {} is empty",
+        history::HISTORY_ENV
+    ))?;
+    // Catch up on whatever was copied outside of cb since it last ran. There
+    // may be no clipboard to read, as over SSH, and history works without one.
+    if let Ok(text) = Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
+        remember(&text, None);
+    }
+    let entries = history::load(&path).map_err(|e| format!("{}: {}", path.display(), e))?;
+    if entries.is_empty() {
+        return Err("clipboard history is empty; copy something with cb first".to_owned());
+    }
+    let highlighter = Highlighter::from_env()?;
+    let Some(entry) = peek::run(entries, &highlighter).map_err(|e| e.to_string())? else {
+        return Ok(());
+    };
+    copy(&entry.text)?;
+    remember(&entry.text, entry.source.as_deref());
+    Ok(())
 }
 
 fn print() -> Result<(), String> {
     let text = Clipboard::new()
         .and_then(|mut clipboard| clipboard.get_text())
         .map_err(|e| e.to_string())?;
+    // Printing is how copies made outside of cb find their way into history.
+    remember(&text, None);
     let mut stdout = io::stdout().lock();
     match writeln!(stdout, "{}", text).and_then(|()| stdout.flush()) {
         // The reader went away early, as with `cb | head -1`; that's not an error.
@@ -272,6 +328,16 @@ mod tests {
         for flag in ["-V", "--version"] {
             assert_eq!(parse(&[flag], true), Ok(Action::Version));
         }
+    }
+
+    #[test]
+    fn peek_is_a_command() {
+        assert_eq!(parse(&["peek"], true), Ok(Action::Peek));
+        assert_eq!(parse(&["peek"], false), Ok(Action::Peek));
+        assert_eq!(
+            parse(&["./peek"], true),
+            Ok(Action::CopyFile(PathBuf::from("./peek")))
+        );
     }
 
     #[test]
