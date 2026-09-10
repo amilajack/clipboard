@@ -28,3 +28,7 @@ cb | grep hello
 **Search clipboard history and copy an entry again**
 
 cb peek
+
+**Turn on tab completion in bash, from ~/.bashrc**
+
+eval "$(cb completions bash)"

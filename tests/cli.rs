@@ -36,6 +36,99 @@ fn help_mentions_peek() {
 }
 
 #[test]
+fn help_mentions_completions() {
+    let output = cb(&["--help"]);
+    assert!(stdout(&output).contains("cb completions SHELL"));
+}
+
+#[test]
+fn completions_prints_the_script_for_each_shell() {
+    for (shell, script) in [
+        ("bash", include_str!("../completions/cb.bash")),
+        ("zsh", include_str!("../completions/_cb")),
+        ("fish", include_str!("../completions/cb.fish")),
+    ] {
+        let output = cb(&["completions", shell]);
+        assert!(output.status.success(), "{}", stderr(&output));
+        assert_eq!(stdout(&output), script);
+    }
+}
+
+#[test]
+fn completions_for_an_unknown_shell_is_a_usage_error() {
+    let output = cb(&["completions", "tcsh"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(stderr(&output).contains("unknown shell 'tcsh'"));
+}
+
+/// Runs the bash completion script the way bash does on Tab.
+#[cfg(unix)]
+mod bash_completion {
+    use super::*;
+    use std::fs;
+    use std::path::Path;
+
+    /// Completes the last of `words`, typed after `cb`, in a directory holding
+    /// `notes.txt` and `src/`.
+    fn complete(words: &[&str]) -> Vec<String> {
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("bash-completion");
+        fs::create_dir_all(dir.join("src")).unwrap();
+        fs::write(dir.join("notes.txt"), "").unwrap();
+
+        let script = stdout(&cb(&["completions", "bash"]));
+        let driver = r#"
+COMP_WORDS=(cb "$@")
+COMP_CWORD=$#
+_cb cb "${COMP_WORDS[COMP_CWORD]}" "${COMP_WORDS[COMP_CWORD-1]}"
+printf '%s\n' "${COMPREPLY[@]}"
+"#;
+        let output = Command::new("bash")
+            .arg("-c")
+            .arg(script + driver)
+            .arg("bash")
+            .args(words)
+            .current_dir(&dir)
+            .output()
+            .expect("failed to run bash");
+        assert!(output.status.success(), "{}", stderr(&output));
+
+        let mut completions: Vec<String> = stdout(&output)
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(str::to_owned)
+            .collect();
+        completions.sort();
+        completions
+    }
+
+    #[test]
+    fn first_argument_is_a_command_or_a_file() {
+        assert_eq!(complete(&[""]), ["completions", "notes.txt", "peek", "src"]);
+        assert_eq!(complete(&["p"]), ["peek"]);
+        assert_eq!(complete(&["no"]), ["notes.txt"]);
+    }
+
+    #[test]
+    fn a_dash_completes_options() {
+        assert_eq!(complete(&["-"]), ["--help", "--version", "-V", "-h"]);
+        assert_eq!(complete(&["--v"]), ["--version"]);
+    }
+
+    #[test]
+    fn completions_is_followed_by_a_shell() {
+        assert_eq!(complete(&["completions", ""]), ["bash", "fish", "zsh"]);
+        assert_eq!(complete(&["completions", "z"]), ["zsh"]);
+    }
+
+    #[test]
+    fn nothing_follows_a_complete_command_line() {
+        assert!(complete(&["peek", ""]).is_empty());
+        assert!(complete(&["notes.txt", ""]).is_empty());
+        assert!(complete(&["completions", "zsh", ""]).is_empty());
+    }
+}
+
+#[test]
 fn peek_needs_a_terminal() {
     // `output()` gives the child a null stdin and piped stdout.
     let output = cb(&["peek"]);
