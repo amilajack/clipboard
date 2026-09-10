@@ -10,7 +10,8 @@ use std::time::Duration;
 
 use arboard::Clipboard;
 
-use crate::{history, platform, remember};
+use crate::history::{self, Use};
+use crate::{platform, remember};
 
 /// How often to look at the clipboard.
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
@@ -41,7 +42,7 @@ pub fn run() -> Result<(), String> {
                 Ok(text) => {
                     seen_change = change;
                     if watcher.observe(Some(&text), platform::is_concealed) {
-                        remember(&text, None);
+                        remember(&text, None, Use::Seen);
                     }
                 }
                 // Empty, or holding something other than text.

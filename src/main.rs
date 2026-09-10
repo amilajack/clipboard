@@ -9,6 +9,7 @@ use arboard::Clipboard;
 
 use crate::completions::Shell;
 use crate::highlight::Highlighter;
+use crate::history::Use;
 
 mod completions;
 mod highlight;
@@ -153,7 +154,7 @@ fn run(action: Action) -> Result<(), String> {
                 fs::read_to_string(&path).map_err(|e| format!("{}: {}", path.display(), e))?;
             let text = strip_trailing_newline(&text);
             copy(text)?;
-            remember(text, Some(&path));
+            remember(text, Some(&path), Use::Copied);
             Ok(())
         }
         Action::CopyStdin => {
@@ -163,7 +164,7 @@ fn run(action: Action) -> Result<(), String> {
                 .map_err(|e| format!("stdin: {}", e))?;
             let text = strip_trailing_newline(&text);
             copy(text)?;
-            remember(text, None);
+            remember(text, None, Use::Copied);
             Ok(())
         }
         Action::Peek => peek(),
@@ -178,8 +179,8 @@ fn run(action: Action) -> Result<(), String> {
 }
 
 /// Adds text to history. Failing to is worth a warning, not a failed copy.
-fn remember(text: &str, source: Option<&Path>) {
-    if let Err(message) = history::record(text, source) {
+fn remember(text: &str, source: Option<&Path>, how: Use) {
+    if let Err(message) = history::record(text, source, how) {
         eprintln!("cb: warning: could not save history: {}", message);
     }
 }
@@ -188,7 +189,7 @@ fn remember(text: &str, source: Option<&Path>) {
 /// asked for it not to be kept, as password managers do.
 fn remember_clipboard(text: &str) {
     if !platform::is_concealed() {
-        remember(text, None);
+        remember(text, None, Use::Seen);
     }
 }
 
@@ -211,7 +212,7 @@ fn peek() -> Result<(), String> {
         return Ok(());
     };
     copy(&entry.text)?;
-    remember(&entry.text, entry.source.as_deref());
+    remember(&entry.text, entry.source.as_deref(), Use::Copied);
     Ok(())
 }
 

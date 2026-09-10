@@ -37,10 +37,12 @@ on Windows.
 .TP
 \f[B]peek\f[R]
 Search clipboard history and copy an entry again.
-Entries are listed newest first, with a preview of the selected one,
+Entries are listed by frecency, with a preview of the selected one,
 syntax highlighted with the syntaxes and themes of \f[B]bat\f[R](1).
 The syntax is picked from the name of the file the entry was copied
 from, or failing that, from its content.
+Frecency counts how often and how recently an entry was copied: each copy
+adds to its score, which halves for every day it goes unused.
 Needs an interactive terminal.
 To copy a file named \f[I]peek\f[R], use \f[B]cb ./peek\f[R].
 .TP
@@ -61,7 +63,7 @@ The search is case\-sensitive only if it contains an uppercase letter.
 Move through the entries.
 .TP
 \f[B]Ctrl\-R\f[R], \f[B]Ctrl\-S\f[R]
-Step to the next older or newer match.
+Step to the next or previous match.
 .TP
 \f[B]PgUp\f[R], \f[B]PgDn\f[R], \f[B]Shift\-Up\f[R], \f[B]Shift\-Down\f[R]
 Scroll the preview.

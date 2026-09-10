@@ -19,14 +19,53 @@ const MAX_ENTRIES: usize = 500;
 /// Larger copies aren't kept, so that reading history stays fast.
 const MAX_ENTRY_BYTES: usize = 1024 * 1024;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// How long an unused entry takes to lose half its frecency, in seconds.
+const HALF_LIFE: u64 = 24 * 60 * 60;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
     pub text: String,
     /// The file the text was copied from, used to pick a syntax for its preview.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<PathBuf>,
-    /// When it was copied, in seconds since the Unix epoch.
+    /// When it was last used, in seconds since the Unix epoch.
     pub time: u64,
+    /// How many times it has been used. History from before this was kept
+    /// counts each entry once.
+    #[serde(default = "one")]
+    pub uses: u32,
+    /// Its frecency as of `time`. See `frecency`.
+    #[serde(default = "one_score")]
+    pub score: f64,
+}
+
+fn one() -> u32 {
+    1
+}
+
+fn one_score() -> f64 {
+    1.0
+}
+
+impl Entry {
+    /// How often and how recently the entry has been used, as of `now`. Each
+    /// use adds 1, and the total halves every `HALF_LIFE` the entry goes
+    /// unused, so a favorite that falls out of use sinks within days.
+    pub fn frecency(&self, now: u64) -> f64 {
+        let idle = now.saturating_sub(self.time) as f64;
+        self.score * 0.5_f64.powf(idle / HALF_LIFE as f64)
+    }
+}
+
+/// How text came to be recorded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Use {
+    /// cb copied it, which always counts as a use.
+    Copied,
+    /// It was found on the clipboard. That is read far more often than it
+    /// changes, and whatever cb copies is found there right after, so this
+    /// only counts when the text isn't already the newest entry.
+    Seen,
 }
 
 /// The history file, or `None` if history is turned off.
@@ -58,19 +97,16 @@ pub fn now() -> u64 {
         .map_or(0, |elapsed| elapsed.as_secs())
 }
 
-/// Adds `text` to history as the newest entry, unless history is turned off.
-pub fn record(text: &str, source: Option<&Path>) -> Result<(), String> {
+/// Records a use of `text` in history, unless history is turned off.
+pub fn record(text: &str, source: Option<&Path>, how: Use) -> Result<(), String> {
     let Some(path) = path() else {
         return Ok(());
     };
-    let entry = Entry {
-        text: text.to_owned(),
-        source: source.map(|source| fs::canonicalize(source).unwrap_or_else(|_| source.to_owned())),
-        time: now(),
-    };
+    let source =
+        source.map(|source| fs::canonicalize(source).unwrap_or_else(|_| source.to_owned()));
     let context = |e: io::Error| format!("{}: {}", path.display(), e);
     let mut entries = load(&path).map_err(context)?;
-    if push(&mut entries, entry) {
+    if push(&mut entries, text, source, how, now()) {
         save(&path, &entries).map_err(context)
     } else {
         Ok(())
@@ -94,23 +130,30 @@ pub fn load(path: &Path) -> io::Result<Vec<Entry>> {
     Ok(entries)
 }
 
-/// Adds `entry` as the newest, replacing any earlier copy of the same text and
-/// dropping the oldest entries past the limit. Returns whether anything changed:
-/// empty and oversized text isn't kept, and text that is already the newest
-/// entry is left alone.
-fn push(entries: &mut Vec<Entry>, mut entry: Entry) -> bool {
-    if entry.text.is_empty() || entry.text.len() > MAX_ENTRY_BYTES {
+/// Records a use of `text` at `now` as the newest entry, carrying over the
+/// uses and frecency of any earlier entry for the same text, and drops the
+/// oldest entries past the limit. Returns whether anything changed: empty and
+/// oversized text isn't kept, and seeing the newest entry again isn't a use.
+fn push(entries: &mut Vec<Entry>, text: &str, source: Option<PathBuf>, how: Use, now: u64) -> bool {
+    if text.is_empty() || text.len() > MAX_ENTRY_BYTES {
         return false;
     }
-    if entries.last().is_some_and(|last| {
-        last.text == entry.text && (entry.source.is_none() || entry.source == last.source)
-    }) {
+    if how == Use::Seen && entries.last().is_some_and(|last| last.text == text) {
         return false;
     }
-    if let Some(index) = entries.iter().rposition(|old| old.text == entry.text) {
+    let mut entry = Entry {
+        text: text.to_owned(),
+        source,
+        time: now,
+        uses: 1,
+        score: 1.0,
+    };
+    if let Some(index) = entries.iter().rposition(|old| old.text == text) {
+        let old = entries.remove(index);
+        entry.uses = entry.uses.saturating_add(old.uses);
+        entry.score += old.frecency(now);
         // Printing the clipboard records it without a source; keep the file
         // it originally came from so the preview still knows its syntax.
-        let old = entries.remove(index);
         entry.source = entry.source.or(old.source);
     }
     entries.push(entry);
@@ -158,16 +201,24 @@ fn create_private(path: &Path) -> io::Result<File> {
 mod tests {
     use super::*;
 
+    const DAY: u64 = HALF_LIFE;
+
     fn entry(text: &str, time: u64) -> Entry {
         Entry {
             text: text.to_owned(),
             source: None,
             time,
+            uses: 1,
+            score: 1.0,
         }
     }
 
     fn texts(entries: &[Entry]) -> Vec<&str> {
         entries.iter().map(|entry| entry.text.as_str()).collect()
+    }
+
+    fn close(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-9
     }
 
     /// A path in the temp directory that no other test uses.
@@ -178,16 +229,37 @@ mod tests {
     #[test]
     fn push_adds_the_newest_entry_last() {
         let mut entries = vec![entry("a", 1)];
-        assert!(push(&mut entries, entry("b", 2)));
+        assert!(push(&mut entries, "b", None, Use::Copied, 2));
         assert_eq!(texts(&entries), ["a", "b"]);
+        assert_eq!(entries[1], entry("b", 2));
     }
 
     #[test]
-    fn push_moves_a_repeated_copy_to_the_end() {
-        let mut entries = vec![entry("a", 1), entry("b", 2)];
-        assert!(push(&mut entries, entry("a", 3)));
+    fn using_an_entry_again_moves_it_to_the_end_and_adds_up() {
+        let mut entries = vec![entry("a", 0), entry("b", 0)];
+        assert!(push(&mut entries, "a", None, Use::Copied, DAY));
         assert_eq!(texts(&entries), ["b", "a"]);
-        assert_eq!(entries[1].time, 3);
+        let a = &entries[1];
+        assert_eq!((a.time, a.uses), (DAY, 2));
+        // The first use lost half its weight in the day before the second.
+        assert!(close(a.score, 1.5), "{}", a.score);
+    }
+
+    #[test]
+    fn copying_the_newest_entry_again_counts_but_seeing_it_does_not() {
+        let mut entries = vec![entry("a", 1)];
+        assert!(!push(&mut entries, "a", None, Use::Seen, 2));
+        assert_eq!(entries[0].uses, 1);
+        assert!(push(&mut entries, "a", None, Use::Copied, 2));
+        assert_eq!(entries[0].uses, 2);
+    }
+
+    #[test]
+    fn seeing_an_older_entry_counts() {
+        let mut entries = vec![entry("a", 1), entry("b", 2)];
+        assert!(push(&mut entries, "a", None, Use::Seen, 3));
+        assert_eq!(texts(&entries), ["b", "a"]);
+        assert_eq!(entries[1].uses, 2);
     }
 
     #[test]
@@ -199,19 +271,16 @@ mod tests {
             },
             entry("b", 2),
         ];
-        assert!(push(&mut entries, entry("fn main() {}", 3)));
+        assert!(push(&mut entries, "fn main() {}", None, Use::Seen, 3));
         assert_eq!(entries[1].source, Some("main.rs".into()));
     }
 
     #[test]
-    fn push_ignores_empty_oversized_and_unchanged_text() {
+    fn push_ignores_empty_and_oversized_text() {
         let mut entries = vec![entry("a", 1)];
-        assert!(!push(&mut entries, entry("", 2)));
-        assert!(!push(
-            &mut entries,
-            entry(&"x".repeat(MAX_ENTRY_BYTES + 1), 2)
-        ));
-        assert!(!push(&mut entries, entry("a", 2)));
+        assert!(!push(&mut entries, "", None, Use::Copied, 2));
+        let huge = "x".repeat(MAX_ENTRY_BYTES + 1);
+        assert!(!push(&mut entries, &huge, None, Use::Copied, 2));
         assert_eq!(entries, [entry("a", 1)]);
     }
 
@@ -220,10 +289,31 @@ mod tests {
         let mut entries = (0..MAX_ENTRIES as u64)
             .map(|i| entry(&i.to_string(), i))
             .collect();
-        assert!(push(&mut entries, entry("new", 1000)));
+        assert!(push(&mut entries, "new", None, Use::Copied, 1000));
         assert_eq!(entries.len(), MAX_ENTRIES);
         assert_eq!(entries[0].text, "1");
         assert_eq!(entries[MAX_ENTRIES - 1].text, "new");
+    }
+
+    #[test]
+    fn frecency_halves_every_day_unused() {
+        let a = Entry {
+            score: 4.0,
+            ..entry("a", DAY)
+        };
+        assert!(close(a.frecency(DAY), 4.0));
+        assert!(close(a.frecency(2 * DAY), 2.0));
+        assert!(close(a.frecency(3 * DAY), 1.0));
+        // A clock set back doesn't inflate it.
+        assert!(close(a.frecency(0), 4.0));
+    }
+
+    #[test]
+    fn history_from_before_frecency_still_loads() {
+        let path = temp_path("old-format.jsonl");
+        fs::write(&path, "{\"text\":\"old\",\"time\":5}\n").unwrap();
+        assert_eq!(load(&path).unwrap(), [entry("old", 5)]);
+        fs::remove_file(path).unwrap();
     }
 
     #[test]
@@ -233,6 +323,8 @@ mod tests {
         let entries = vec![
             Entry {
                 source: Some("/tmp/a.rs".into()),
+                uses: 3,
+                score: 2.25,
                 ..entry("line one\n\t\"quoted\"\nline three", 1)
             },
             entry("second", 2),

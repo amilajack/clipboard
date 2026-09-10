@@ -40,21 +40,24 @@ cb --help
 
 `cb` remembers what it copies, and what it finds on the clipboard when it
 prints it. To record everything you copy, in any program, run
-[`cb watch`](#recording-everything-you-copy). `cb peek` opens that history: newest first on the left, and on the right a preview of the selected
-entry, syntax highlighted with [bat](https://github.com/sharkdp/bat)'s syntaxes
+[`cb watch`](#recording-everything-you-copy). `cb peek` opens that history, with a preview of the selected entry on the right, syntax highlighted with [bat](https://github.com/sharkdp/bat)'s syntaxes
 and themes.
 
 | Key                         | Action                                     |
 | --------------------------- | ------------------------------------------ |
 | Type                        | Search every line of every entry           |
 | `↑` `↓`                     | Move through the entries                   |
-| `Ctrl-R` `Ctrl-S`           | Step to the next older or newer match      |
+| `Ctrl-R` `Ctrl-S`           | Step to the next or previous match         |
 | `PgUp` `PgDn`, `Shift-↑` `Shift-↓` | Scroll the preview                  |
 | `Backspace` `Ctrl-W` `Ctrl-U` | Delete a character, a word, or the search |
 | `Enter`                     | Copy the selected entry and exit           |
 | `Esc`, `Ctrl-C`             | Exit without copying                       |
 
-The search is case-sensitive only if it contains an uppercase letter.
+Entries are ordered by frecency, how often and how recently you've copied
+them: each copy adds to an entry's score, which halves for every day it goes
+unused. What you copy often stays near the top, and old favorites sink within
+days. Matches keep that order as you search, which is case-sensitive only if it
+contains an uppercase letter.
 
 History holds the last 500 copies, up to 1 MiB each, in a file only you can
 read: `~/.local/share/cb/history.jsonl` on Linux,
