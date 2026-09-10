@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install rust toolchain (v${{ env.MIN_SUPPORTED_RUST_VERSION }})
         uses: dtolnay/rust-toolchain@master
@@ -65,7 +65,7 @@ jobs:
           - { os: windows-11-arm, target: aarch64-pc-windows-msvc }
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Extract crate information
         shell: bash
@@ -266,13 +266,13 @@ jobs:
           fakeroot dpkg-deb --build "${DPKG_DIR}" "${DPKG_PATH}"
 
       - name: "Artifact upload: tarball"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.PKG_NAME }}
           path: ${{ steps.package.outputs.PKG_PATH }}
 
       - name: "Artifact upload: Debian package"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: steps.debian-package.outputs.DPKG_NAME
         with:
           name: ${{ steps.debian-package.outputs.DPKG_NAME }}
@@ -286,7 +286,7 @@ jobs:
           echo "IS_RELEASE=${IS_RELEASE}" >> $GITHUB_OUTPUT
 
       - name: Publish archives and packages
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: steps.is-release.outputs.IS_RELEASE
         with:
           files: |
