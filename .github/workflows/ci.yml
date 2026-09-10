@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install rust toolchain (v${{ env.MIN_SUPPORTED_RUST_VERSION }})
         uses: dtolnay/rust-toolchain@master
@@ -65,7 +65,7 @@ jobs:
           - { os: windows-11-arm, target: aarch64-pc-windows-msvc }
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Extract crate information
         shell: bash
