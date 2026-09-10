@@ -1,4 +1,13 @@
-## Unreleased
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Details
 
 - Copied text now survives `cb` exiting on Linux. X11 and Wayland clipboards
   only live as long as the program that set them, so `cb` leaves a background
@@ -17,6 +26,6 @@
 - Building no longer needs the X11 development libraries.
 - Minimum supported Rust version is now 1.86.
 
-## v0.0.1
+## [0.0.1] - 2022-02-21
 
-initial release
+- Initial release.

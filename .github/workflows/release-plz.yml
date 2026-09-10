@@ -1,0 +1,82 @@
+name: Release-plz
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # Publishes to crates.io, then tags and creates the GitHub release, whenever
+  # the version in Cargo.toml isn't published yet, i.e. after a release PR merges.
+  release-plz-release:
+    name: Release-plz release
+    if: github.repository_owner == 'amilajack'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+      pull-requests: read
+      # Trusted publishing: release-plz trades this OIDC token for a short-lived
+      # crates.io token, so no CARGO_REGISTRY_TOKEN secret is stored anywhere.
+      id-token: write
+      # Lets the job start the CICD workflow on the new tag; see the last step.
+      actions: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run release-plz
+        id: release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # A tag pushed with GITHUB_TOKEN doesn't trigger other workflows, so CICD
+      # would never build the release binaries. workflow_dispatch is the one event
+      # GITHUB_TOKEN may trigger: run CICD on the new tag, where it builds the
+      # binaries and attaches them to the release that release-plz just created.
+      - name: Build and attach release binaries
+        if: steps.release-plz.outputs.releases_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASES: ${{ steps.release-plz.outputs.releases }}
+        run: |
+          for tag in $(jq -r '.[].tag' <<< "$RELEASES"); do
+            gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$tag"
+          done
+
+  # Opens or updates a PR that bumps the version by semver, based on the
+  # conventional commits since the last release, and updates CHANGELOG.md.
+  release-plz-pr:
+    name: Release-plz PR
+    if: github.repository_owner == 'amilajack'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
