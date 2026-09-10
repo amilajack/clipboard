@@ -78,11 +78,13 @@ Copy the selected entry and exit.
 Exit without copying.
 .TP
 \f[B]watch\f[R]
-Check the clipboard every 2 seconds and record each new text copy,
-whichever program made it, until stopped with Ctrl\-C or
-\f[B]\-\-uninstall\f[R].
+Record each new text copy as it's made, whichever program made it,
+until stopped with Ctrl\-C or \f[B]\-\-uninstall\f[R].
+\f[B]cb\f[R] listens for the system's clipboard notifications on X11,
+on Wayland compositors with the data\-control protocol, and on Windows.
+Where there are none, as on macOS, it checks every 2 seconds, and a copy
+replaced sooner may be missed.
 Only one watcher runs at a time.
-A copy replaced within 2 seconds may be missed.
 .RS
 .TP
 \f[B]\-\-install\f[R]

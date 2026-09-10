@@ -27,15 +27,19 @@ syntect = { version = "5.3", default-features = false, features = ["parsing", "r
 # bat's syntaxes and themes, so previews look the way they do in `bat`.
 two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
 
-# Platform clipboard APIs that arboard already builds on, for the checks it
-# doesn't offer: whether a copy is marked as secret, and whether it changed.
+# Platform clipboard APIs that arboard already builds on, for what it doesn't
+# offer: whether a copy is marked as secret, and word of when the clipboard
+# changes.
 [target.'cfg(all(unix, not(any(target_os = "macos", target_os = "android", target_os = "emscripten"))))'.dependencies]
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 wl-clipboard-rs = "0.9"
-x11rb = "0.13"
+x11rb = { version = "0.13", features = ["xfixes"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSPasteboard"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSString"] }
 
 [target.'cfg(windows)'.dependencies]
-clipboard-win = "5.4"
+clipboard-win = { version = "5.4", features = ["monitor"] }

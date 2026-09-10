@@ -5,7 +5,7 @@
 complete -c cb -f
 complete -c cb -n __fish_use_subcommand -F
 complete -c cb -n __fish_use_subcommand -a peek -d 'Search clipboard history and copy an entry again'
-complete -c cb -n __fish_use_subcommand -a watch -d 'Record everything copied, checking every 2 seconds'
+complete -c cb -n __fish_use_subcommand -a watch -d 'Record everything copied, in any program'
 complete -c cb -n __fish_use_subcommand -a completions -d 'Print the completion script for a shell'
 complete -c cb -n __fish_use_subcommand -s h -l help -d 'Print help'
 complete -c cb -n __fish_use_subcommand -s V -l version -d 'Print version'

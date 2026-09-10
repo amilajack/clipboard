@@ -8,7 +8,7 @@
 _cb() {
   local -a commands=(
     'peek:search clipboard history and copy an entry again'
-    'watch:record everything copied, checking every 2 seconds'
+    'watch:record everything copied, in any program'
     'completions:print the completion script for a shell'
   )
   local -a options=(

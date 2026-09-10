@@ -29,7 +29,7 @@ With no FILE and nothing piped in, print the clipboard.
 
 Commands:
   peek               Search clipboard history and copy an entry again
-  watch              Record everything copied, checking every 2 seconds
+  watch              Record everything copied, in any program
     --install        Also start watching whenever you log in
     --uninstall      Stop watching, now and at login
   completions SHELL  Print tab completion for bash, zsh or fish
