@@ -1,5 +1,5 @@
 use std::env;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
@@ -12,22 +12,29 @@ use crate::highlight::Highlighter;
 mod highlight;
 mod history;
 mod peek;
+mod platform;
+mod watch;
 
 const USAGE: &str = "\
 Usage: cb [FILE]
        cb peek
+       cb watch [--install | --uninstall]
 
 Copy FILE, or whatever is piped in, to the system clipboard.
 With no FILE and nothing piped in, print the clipboard.
 
 Commands:
   peek               Search clipboard history and copy an entry again
+  watch              Record everything copied, checking every 2 seconds
+    --install        Also start watching whenever you log in
+    --uninstall      Stop watching, now and at login
 
 Examples:
   cb package.json    Copy a file
   git diff | cb      Copy piped input
   cb | grep hello    Search the clipboard
   cb peek            Browse what you copied before
+  cb watch --install Keep history of every copy, in any program
 
 Options:
   -h, --help         Print help
@@ -49,19 +56,28 @@ enum Action {
     CopyFile(PathBuf),
     CopyStdin,
     Peek,
+    Watch,
+    WatchInstall,
+    WatchUninstall,
 }
 
 /// Decides what to do from the arguments (excluding the program name).
 ///
 /// An explicit file always wins over stdin, so `cb notes.txt` behaves the same
 /// in a script or IDE task, where stdin is not a terminal, as it does at a prompt.
-/// `peek` is a command, so a file by that name is copied with `cb ./peek`.
+/// `peek` and `watch` are commands, so files by those names are copied as
+/// `cb ./peek` and `cb ./watch`.
 fn parse_args<I>(args: I, stdin_is_terminal: bool) -> Result<Action, String>
 where
     I: IntoIterator<Item = OsString>,
 {
     let mut args = args.into_iter();
     let first = args.next();
+    // `watch` is the one command that takes an option.
+    let option = match first.as_deref() {
+        Some(command) if command == OsStr::new("watch") => args.next(),
+        _ => None,
+    };
     if let Some(extra) = args.next() {
         return Err(format!("unexpected argument '{}'", extra.to_string_lossy()));
     }
@@ -75,6 +91,13 @@ where
         Some("-h" | "--help") => Ok(Action::Help),
         Some("-V" | "--version") => Ok(Action::Version),
         Some("peek") => Ok(Action::Peek),
+        Some("watch") => match option.as_deref().map(OsStr::to_string_lossy).as_deref() {
+            None => Ok(Action::Watch),
+            Some("--install") => Ok(Action::WatchInstall),
+            Some("--uninstall") => Ok(Action::WatchUninstall),
+            Some(flag) if flag.starts_with('-') => Err(format!("unknown option '{}'", flag)),
+            Some(extra) => Err(format!("unexpected argument '{}'", extra)),
+        },
         Some(flag) if flag.len() > 1 && flag.starts_with('-') => {
             Err(format!("unknown option '{}'", flag))
         }
@@ -123,6 +146,9 @@ fn run(action: Action) -> Result<(), String> {
             Ok(())
         }
         Action::Peek => peek(),
+        Action::Watch => watch::run(),
+        Action::WatchInstall => watch::install(),
+        Action::WatchUninstall => watch::uninstall(),
     }
 }
 
@@ -133,18 +159,23 @@ fn remember(text: &str, source: Option<&Path>) {
     }
 }
 
+/// Adds text read off the clipboard to history, unless whoever copied it
+/// asked for it not to be kept, as password managers do.
+fn remember_clipboard(text: &str) {
+    if !platform::is_concealed() {
+        remember(text, None);
+    }
+}
+
 fn peek() -> Result<(), String> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err("peek needs an interactive terminal".to_owned());
     }
-    let path = history::path().ok_or(format!(
-        "clipboard history is turned off because {} is empty",
-        history::HISTORY_ENV
-    ))?;
+    let path = history::require_path()?;
     // Catch up on whatever was copied outside of cb since it last ran. There
     // may be no clipboard to read, as over SSH, and history works without one.
     if let Ok(text) = Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
-        remember(&text, None);
+        remember_clipboard(&text);
     }
     let entries = history::load(&path).map_err(|e| format!("{}: {}", path.display(), e))?;
     if entries.is_empty() {
@@ -163,8 +194,9 @@ fn print() -> Result<(), String> {
     let text = Clipboard::new()
         .and_then(|mut clipboard| clipboard.get_text())
         .map_err(|e| e.to_string())?;
-    // Printing is how copies made outside of cb find their way into history.
-    remember(&text, None);
+    // Without `cb watch`, printing is how copies made outside of cb find their
+    // way into history.
+    remember_clipboard(&text);
     let mut stdout = io::stdout().lock();
     match writeln!(stdout, "{}", text).and_then(|()| stdout.flush()) {
         // The reader went away early, as with `cb | head -1`; that's not an error.
@@ -337,6 +369,43 @@ mod tests {
         assert_eq!(
             parse(&["./peek"], true),
             Ok(Action::CopyFile(PathBuf::from("./peek")))
+        );
+    }
+
+    #[test]
+    fn watch_takes_one_option() {
+        assert_eq!(parse(&["watch"], true), Ok(Action::Watch));
+        assert_eq!(
+            parse(&["watch", "--install"], true),
+            Ok(Action::WatchInstall)
+        );
+        assert_eq!(
+            parse(&["watch", "--uninstall"], false),
+            Ok(Action::WatchUninstall)
+        );
+        assert_eq!(
+            parse(&["watch", "--bogus"], true),
+            Err("unknown option '--bogus'".into())
+        );
+        assert_eq!(
+            parse(&["watch", "now"], true),
+            Err("unexpected argument 'now'".into())
+        );
+        assert_eq!(
+            parse(&["watch", "--install", "x"], true),
+            Err("unexpected argument 'x'".into())
+        );
+        assert_eq!(
+            parse(&["./watch"], true),
+            Ok(Action::CopyFile(PathBuf::from("./watch")))
+        );
+    }
+
+    #[test]
+    fn only_watch_takes_an_option() {
+        assert_eq!(
+            parse(&["peek", "--install"], true),
+            Err("unexpected argument '--install'".into())
         );
     }
 

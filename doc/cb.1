@@ -8,6 +8,8 @@ cb \- a better command line clipboard
 \f[B]cb\f[R] [\f[I]FILE\f[R]]
 .br
 \f[B]cb peek\f[R]
+.br
+\f[B]cb watch\f[R] [\f[B]\-\-install\f[R] | \f[B]\-\-uninstall\f[R]]
 .SH DESCRIPTION
 .PP
 Copy \f[I]FILE\f[R], or whatever is piped in, to the system clipboard.
@@ -21,9 +23,14 @@ that set them, so \f[B]cb\f[R] leaves a background process serving the
 copied text until another program copies something.
 .PP
 \f[B]cb\f[R] keeps a history of what it copies, and of what it finds on
-the clipboard when printing it, so copies made in other programs are
-included too.
-It holds the last 500 copies of up to 1 MiB each.
+the clipboard when printing it.
+\f[B]cb watch\f[R] adds everything copied in any program.
+History holds the last 500 copies of up to 1 MiB each.
+Copies that password managers mark as secret are never recorded: those
+offering the \f[I]x\-kde\-passwordManagerHint\f[R] type on Linux, the
+nspasteboard.org types on macOS, or
+\f[I]ExcludeClipboardContentFromMonitorProcessing\f[R] and its relatives
+on Windows.
 .SH COMMANDS
 .TP
 \f[B]peek\f[R]
@@ -58,6 +65,26 @@ Copy the selected entry and exit.
 .TP
 \f[B]Esc\f[R], \f[B]Ctrl\-C\f[R], \f[B]Ctrl\-G\f[R]
 Exit without copying.
+.TP
+\f[B]watch\f[R]
+Check the clipboard every 2 seconds and record each new text copy,
+whichever program made it, until stopped with Ctrl\-C or
+\f[B]\-\-uninstall\f[R].
+Only one watcher runs at a time.
+A copy replaced within 2 seconds may be missed.
+.RS
+.TP
+\f[B]\-\-install\f[R]
+Also start watching at every login, and start now.
+This adds \f[I]\[ti]/.config/autostart/cb\-watch.desktop\f[R] on Linux,
+\f[I]\[ti]/Library/LaunchAgents/com.github.amilajack.cb.watch.plist\f[R]
+on macOS, and a \f[I]cb watch\f[R] value under
+\f[I]HKCU\[rs]Software\[rs]Microsoft\[rs]Windows\[rs]CurrentVersion\[rs]Run\f[R]
+on Windows, each running the \f[B]cb\f[R] it was installed with.
+.TP
+\f[B]\-\-uninstall\f[R]
+Remove what \f[B]\-\-install\f[R] added, and stop the running watcher.
+.RE
 .SH OPTIONS
 .TP
 \f[B]\-h\f[R], \f[B]\-\-help\f[R]
@@ -88,6 +115,10 @@ cb | grep hello
 \f[B]Copy something from earlier\f[R]
 .PP
 cb peek
+.PP
+\f[B]Record every copy, from now on and at every login\f[R]
+.PP
+cb watch \-\-install
 .SH ENVIRONMENT
 .TP
 \f[B]CB_HISTORY_FILE\f[R]

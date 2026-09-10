@@ -28,3 +28,7 @@ cb | grep hello
 **Search clipboard history and copy an entry again**
 
 cb peek
+
+**Record every copy, from now on and at every login**
+
+cb watch --install

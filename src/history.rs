@@ -34,6 +34,16 @@ pub fn path() -> Option<PathBuf> {
     resolve_path(env::var_os(HISTORY_ENV))
 }
 
+/// The history file, or an error saying history is turned off.
+pub fn require_path() -> Result<PathBuf, String> {
+    path().ok_or_else(|| {
+        format!(
+            "clipboard history is turned off because {} is empty",
+            HISTORY_ENV
+        )
+    })
+}
+
 fn resolve_path(overridden: Option<OsString>) -> Option<PathBuf> {
     match overridden {
         Some(path) if path.is_empty() => None,

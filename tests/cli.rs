@@ -51,6 +51,30 @@ fn peek_takes_no_arguments() {
 }
 
 #[test]
+fn help_mentions_watch() {
+    let output = cb(&["--help"]);
+    assert!(stdout(&output).contains("cb watch [--install | --uninstall]"));
+}
+
+#[test]
+fn watch_needs_history() {
+    // `cb()` turns history off.
+    let output = cb(&["watch"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        stderr(&output),
+        "cb: clipboard history is turned off because CB_HISTORY_FILE is empty\n"
+    );
+}
+
+#[test]
+fn watch_rejects_unknown_options() {
+    let output = cb(&["watch", "--bogus"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(stderr(&output).contains("unknown option '--bogus'"));
+}
+
+#[test]
 fn version_prints_the_crate_version() {
     let output = cb(&["--version"]);
     assert!(output.status.success(), "{}", stderr(&output));

@@ -29,6 +29,9 @@ cb | grep hello
 # Search clipboard history, preview it, and copy an entry again
 cb peek
 
+# Record everything you copy, in any program, from now on and at every login
+cb watch --install
+
 # Show all options
 cb --help
 ```
@@ -36,8 +39,8 @@ cb --help
 ## History
 
 `cb` remembers what it copies, and what it finds on the clipboard when it
-prints it, so copies made in other programs show up too. `cb peek` opens that
-history: newest first on the left, and on the right a preview of the selected
+prints it. To record everything you copy, in any program, run
+[`cb watch`](#recording-everything-you-copy). `cb peek` opens that history: newest first on the left, and on the right a preview of the selected
 entry, syntax highlighted with [bat](https://github.com/sharkdp/bat)'s syntaxes
 and themes.
 
@@ -59,6 +62,31 @@ read: `~/.local/share/cb/history.jsonl` on Linux,
 `%APPDATA%\cb\history.jsonl` on Windows. Set `CB_HISTORY_FILE` to keep it
 somewhere else, or to an empty string to turn history off. The preview theme
 comes from `CB_THEME`, or else `BAT_THEME`.
+
+### Recording everything you copy
+
+`cb` on its own only sees the clipboard when you run it. `cb watch` checks it
+every 2 seconds and records each new text copy, whichever program made it:
+
+```bash
+cb watch --install     # start now, and whenever you log in
+cb watch --uninstall   # stop, now and at login
+cb watch               # or run it in the foreground; Ctrl-C stops it
+```
+
+`--install` adds a desktop autostart entry on Linux
+(`~/.config/autostart/cb-watch.desktop`), a LaunchAgent on macOS
+(`~/Library/LaunchAgents/com.github.amilajack.cb.watch.plist`), and an entry
+under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows. The
+entry runs the `cb` you installed it with, so install again if you move `cb`.
+Window managers without desktop autostart, like sway and i3, need `cb watch`
+started from their config instead. Only one watcher runs at a time.
+
+Copies that password managers mark as secret are never recorded, by `cb watch`
+or anything else in `cb`: the `x-kde-passwordManagerHint` type on Linux, the
+[nspasteboard.org](http://nspasteboard.org) types on macOS, and
+`ExcludeClipboardContentFromMonitorProcessing` and its relatives on Windows.
+Only text is recorded, and a copy replaced within 2 seconds may be missed.
 
 ## Upcoming
 
