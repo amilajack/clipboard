@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.6](https://github.com/amilajack/clipboard/compare/v0.0.5...v0.0.6) - 2026-09-10
+
+### Added
+
+- watch the clipboard through native change notifications
+- sort cb peek by frecency
+- add cb watch to record every copy
+
+### Other
+
+- Merge remote-tracking branch 'origin/main' into feat/watch
+
 ## [0.0.5](https://github.com/amilajack/clipboard/compare/v0.0.4...v0.0.5) - 2026-09-10
 
 ### Added
