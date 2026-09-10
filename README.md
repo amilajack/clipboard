@@ -41,6 +41,18 @@ cb peek 1
 cb p 1
 ```
 
+## Releasing
+
+Releases are automated with [release-plz](https://release-plz.dev). Write commit
+messages as [Conventional Commits](https://www.conventionalcommits.org): `fix:`,
+`feat:`, and `feat!:` or a `BREAKING CHANGE:` footer for breaking changes.
+
+Every merge to `main` opens or updates a release PR that bumps the version by
+semver and updates `CHANGELOG.md`. Merging that PR publishes the crate to
+crates.io, tags the release, and attaches the binaries built by CI.
+`ci`, `docs`, `chore`, `build`, `style` and `test` commits are left out of the
+changelog.
+
 ## Comparison
 
 |                | **clipboard** | pbcopy/pbpaste  | xclip           | clip              |
