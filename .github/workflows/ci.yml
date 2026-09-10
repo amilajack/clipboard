@@ -4,7 +4,6 @@ env:
   MIN_SUPPORTED_RUST_VERSION: "1.59.0"
   CARGO_TERM_COLOR: "always"
   CICD_INTERMEDIATES_DIR: "_cicd-intermediates"
-  CROSS_VERSION: "0.2.5"
 
 on:
   workflow_dispatch:
@@ -15,16 +14,23 @@ on:
     tags:
       - "*"
 
+# Supersede an in-flight run when new commits land on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   min_version:
     name: Minimum supported rust version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
 
       - name: Install xcb
-        shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -38,6 +44,9 @@ jobs:
         with:
           toolchain: ${{ env.MIN_SUPPORTED_RUST_VERSION }}
           components: clippy, rustfmt
+
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
 
       - name: Ensure `cargo fmt` has been run
         run: cargo fmt -- --check
@@ -57,40 +66,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Every target builds natively on an ARM runner, so there is no
+        # cross-compilation, no qemu and no custom Docker image involved.
         job:
-          # - {
-          #     os: ubuntu-latest,
-          #     target: arm-unknown-linux-gnueabihf,
-          #     use-cross: true,
-          #     arch: armhf,
-          #   }
-          - {
-              os: ubuntu-latest,
-              target: aarch64-unknown-linux-gnu,
-              use-cross: true,
-              arch: arm64,
-            }
-          - {
-              os: ubuntu-latest,
-              target: i686-unknown-linux-gnu,
-              use-cross: true,
-              arch: i386,
-            }
-          # musl targets are disabled: xcb/X11 has no musl-linkable build available
-          # from apt, so `-lxcb` cannot be resolved for a static musl link.
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
-          - { os: macos-13, target: x86_64-apple-darwin }
-          # - { os: windows-2022, target: i686-pc-windows-gnu        }  ## disabled; error: linker `i686-w64-mingw32-gcc` not found
-          - { os: windows-2022, target: i686-pc-windows-msvc }
-          - { os: windows-2022, target: x86_64-pc-windows-gnu }
-          - { os: windows-2022, target: x86_64-pc-windows-msvc }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc }
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
 
       - name: Install xcb
-        if: startsWith(matrix.job.os, 'ubuntu') && matrix.job.use-cross != true
-        shell: bash
+        if: startsWith(matrix.job.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -98,49 +85,6 @@ jobs:
             libxcb-shape0-dev \
             libxcb-xfixes0-dev \
             libx11-xcb-dev
-
-      - name: Build Docker
-        if: startsWith(matrix.job.os, 'ubuntu') && matrix.job.use-cross == true
-        shell: bash
-        # Generate a Dockerfile that adds the xcb headers for the foreign
-        # architecture on top of the stock cross image.
-        #
-        # arm64/armhf packages are not served by archive.ubuntu.com, only by
-        # ports.ubuntu.com, so for those the existing sources are pinned to the
-        # host architectures and a ports source is added for the target one.
-        run: |
-          cat > Dockerfile <<'DOCKERFILE'
-          FROM ghcr.io/cross-rs/${{ matrix.job.target }}:${{ env.CROSS_VERSION }}
-          ARG DEBIAN_FRONTEND=noninteractive
-          RUN set -eux; \
-              arch="${{ matrix.job.arch }}"; \
-              dpkg --add-architecture "$arch"; \
-              if [ "$arch" = "arm64" ] || [ "$arch" = "armhf" ]; then \
-                . /etc/os-release; \
-                sed -i 's|^deb \(http\)|deb [arch=amd64,i386] \1|' /etc/apt/sources.list; \
-                for suite in "$UBUNTU_CODENAME" "$UBUNTU_CODENAME-updates" "$UBUNTU_CODENAME-security"; do \
-                  echo "deb [arch=$arch] http://ports.ubuntu.com/ubuntu-ports $suite main universe"; \
-                done >> /etc/apt/sources.list; \
-              fi; \
-              apt-get update; \
-              apt-get install -y --no-install-recommends \
-                  libx11-xcb-dev:"$arch" \
-                  libxcb-xfixes0-dev:"$arch" \
-                  libxcb-shape0-dev:"$arch"; \
-              rm -rf /var/lib/apt/lists/*
-          DOCKERFILE
-          cat Dockerfile
-          docker build -t xcb/${{ matrix.job.target }} .
-          docker images
-
-      - name: Install prerequisites
-        if: startsWith(matrix.job.os, 'ubuntu')
-        shell: bash
-        run: |
-          case ${{ matrix.job.target }} in
-            arm-unknown-linux-*) sudo apt-get -y update ; sudo apt-get -y install gcc-arm-linux-gnueabihf ;;
-            aarch64-unknown-linux-gnu) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
-          esac
 
       - name: Extract crate information
         shell: bash
@@ -153,25 +97,14 @@ jobs:
           echo "PROJECT_DESCRIPTION=$(sed -n 's/^description = "\(.*\)"/\1/p' Cargo.toml)" >> $GITHUB_ENV
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
           targets: ${{ matrix.job.target }}
 
-      - name: Install cross
-        if: matrix.job.use-cross == true
-        uses: taiki-e/install-action@v2
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
         with:
-          tool: cross@${{ env.CROSS_VERSION }}
-
-      - name: Select cargo command
-        shell: bash
-        run: |
-          if [ "${{ matrix.job.use-cross }}" = "true" ]; then
-            echo "CARGO=cross" >> $GITHUB_ENV
-          else
-            echo "CARGO=cargo" >> $GITHUB_ENV
-          fi
+          key: ${{ matrix.job.target }}
 
       - name: Show version information (Rust, cargo, GCC)
         shell: bash
@@ -185,7 +118,7 @@ jobs:
 
       - name: Build
         shell: bash
-        run: $CARGO build --locked --release --target=${{ matrix.job.target }}
+        run: cargo build --locked --release --target=${{ matrix.job.target }}
 
       - name: Strip debug information from executable
         id: strip
@@ -197,11 +130,10 @@ jobs:
             *-pc-windows-*) EXE_suffix=".exe" ;;
           esac;
 
-          # Figure out what strip tool to use if any
+          # The MSVC toolchain has no `strip`; everything else builds natively,
+          # so the host's own `strip` is the right one.
           STRIP="strip"
           case ${{ matrix.job.target }} in
-            arm-unknown-linux-*) STRIP="arm-linux-gnueabihf-strip" ;;
-            aarch64-unknown-linux-gnu) STRIP="aarch64-linux-gnu-strip" ;;
             *-pc-windows-msvc) STRIP="" ;;
           esac;
 
@@ -223,18 +155,9 @@ jobs:
           echo "BIN_PATH=${BIN_PATH}" >> $GITHUB_OUTPUT
           echo "BIN_NAME=${BIN_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Set testing options
-        id: test-options
-        shell: bash
-        run: |
-          # test only library unit tests and binary for arm-type targets
-          unset CARGO_TEST_OPTIONS
-          unset CARGO_TEST_OPTIONS ; case ${{ matrix.job.target }} in arm-* | aarch64-*) CARGO_TEST_OPTIONS="--bin ${PROJECT_BIN_NAME}" ;; esac;
-          echo "CARGO_TEST_OPTIONS=${CARGO_TEST_OPTIONS}" >> $GITHUB_OUTPUT
-
       - name: Run tests
         shell: bash
-        run: $CARGO test --locked --target=${{ matrix.job.target }} ${{ steps.test-options.outputs.CARGO_TEST_OPTIONS }}
+        run: cargo test --locked --target=${{ matrix.job.target }}
 
       - name: Create tarball
         id: package
@@ -280,16 +203,11 @@ jobs:
           mkdir -p "${DPKG_DIR}"
 
           DPKG_BASENAME=${PROJECT_NAME}
-          DPKG_CONFLICTS=${PROJECT_NAME}-musl
-          case ${{ matrix.job.target }} in *-musl) DPKG_BASENAME=${PROJECT_NAME}-musl ; DPKG_CONFLICTS=${PROJECT_NAME} ;; esac;
           DPKG_VERSION=${PROJECT_VERSION}
 
           unset DPKG_ARCH
           case ${{ matrix.job.target }} in
             aarch64-*-linux-*) DPKG_ARCH=arm64 ;;
-            arm-*-linux-*hf) DPKG_ARCH=armhf ;;
-            i686-*-linux-*) DPKG_ARCH=i386 ;;
-            x86_64-*-linux-*) DPKG_ARCH=amd64 ;;
             *) DPKG_ARCH=notset ;;
           esac;
 
@@ -357,7 +275,6 @@ jobs:
           Homepage: ${{ env.PROJECT_HOMEPAGE }}
           Architecture: ${DPKG_ARCH}
           Provides: ${{ env.PROJECT_NAME }}
-          Conflicts: ${DPKG_CONFLICTS}
           Description: ${{ env.PROJECT_DESCRIPTION }}
           EOF
 
