@@ -29,6 +29,10 @@ cb | grep hello
 
 cb peek
 
+**Record every copy, from now on and at every login**
+
+cb watch --install
+
 **Turn on tab completion in bash, from ~/.bashrc**
 
 eval "$(cb completions bash)"

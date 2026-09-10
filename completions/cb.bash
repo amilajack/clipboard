@@ -11,7 +11,7 @@ _cb() {
         if [[ $cur == -* ]]; then
             COMPREPLY=($(compgen -W '-h --help -V --version' -- "$cur"))
         else
-            COMPREPLY=($(compgen -W 'peek completions' -- "$cur"))
+            COMPREPLY=($(compgen -W 'peek watch completions' -- "$cur"))
             # Read line by line so names with spaces stay whole.
             local file
             while IFS= read -r file; do
@@ -22,6 +22,8 @@ _cb() {
     2)
         if [[ $prev == completions ]]; then
             COMPREPLY=($(compgen -W 'bash zsh fish' -- "$cur"))
+        elif [[ $prev == watch ]]; then
+            COMPREPLY=($(compgen -W '--install --uninstall' -- "$cur"))
         fi
         ;;
     esac

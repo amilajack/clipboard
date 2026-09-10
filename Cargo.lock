@@ -101,13 +101,18 @@ name = "clipboard-cli"
 version = "0.0.5"
 dependencies = [
  "arboard",
+ "clipboard-win",
  "crossterm",
  "dirs",
+ "objc2-app-kit",
+ "objc2-foundation",
  "ratatui",
  "serde",
  "serde_json",
  "syntect",
  "two-face",
+ "wl-clipboard-rs",
+ "x11rb",
 ]
 
 [[package]]

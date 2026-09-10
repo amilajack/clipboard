@@ -103,7 +103,10 @@ printf '%s\n' "${COMPREPLY[@]}"
 
     #[test]
     fn first_argument_is_a_command_or_a_file() {
-        assert_eq!(complete(&[""]), ["completions", "notes.txt", "peek", "src"]);
+        assert_eq!(
+            complete(&[""]),
+            ["completions", "notes.txt", "peek", "src", "watch"]
+        );
         assert_eq!(complete(&["p"]), ["peek"]);
         assert_eq!(complete(&["no"]), ["notes.txt"]);
     }
@@ -121,10 +124,17 @@ printf '%s\n' "${COMPREPLY[@]}"
     }
 
     #[test]
+    fn watch_is_followed_by_its_options() {
+        assert_eq!(complete(&["watch", ""]), ["--install", "--uninstall"]);
+        assert_eq!(complete(&["watch", "--u"]), ["--uninstall"]);
+    }
+
+    #[test]
     fn nothing_follows_a_complete_command_line() {
         assert!(complete(&["peek", ""]).is_empty());
         assert!(complete(&["notes.txt", ""]).is_empty());
         assert!(complete(&["completions", "zsh", ""]).is_empty());
+        assert!(complete(&["watch", "--install", ""]).is_empty());
     }
 }
 
@@ -141,6 +151,30 @@ fn peek_takes_no_arguments() {
     let output = cb(&["peek", "1"]);
     assert_eq!(output.status.code(), Some(2));
     assert!(stderr(&output).contains("unexpected argument '1'"));
+}
+
+#[test]
+fn help_mentions_watch() {
+    let output = cb(&["--help"]);
+    assert!(stdout(&output).contains("cb watch [--install | --uninstall]"));
+}
+
+#[test]
+fn watch_needs_history() {
+    // `cb()` turns history off.
+    let output = cb(&["watch"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        stderr(&output),
+        "cb: clipboard history is turned off because CB_HISTORY_FILE is empty\n"
+    );
+}
+
+#[test]
+fn watch_rejects_unknown_options() {
+    let output = cb(&["watch", "--bogus"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(stderr(&output).contains("unknown option '--bogus'"));
 }
 
 #[test]
