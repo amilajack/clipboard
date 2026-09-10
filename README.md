@@ -68,8 +68,11 @@ comes from `CB_THEME`, or else `BAT_THEME`.
 
 ### Recording everything you copy
 
-`cb` on its own only sees the clipboard when you run it. `cb watch` checks it
-every 2 seconds and records each new text copy, whichever program made it:
+`cb` on its own only sees the clipboard when you run it. `cb watch` records
+each new text copy as it's made, whichever program made it. It listens for
+the system's clipboard notifications on X11, on Wayland compositors with the
+data-control protocol (KDE, sway, Hyprland and most others), and on Windows.
+Where there are none, as on macOS, it checks every 2 seconds.
 
 ```bash
 cb watch --install     # start now, and whenever you log in
@@ -89,7 +92,8 @@ Copies that password managers mark as secret are never recorded, by `cb watch`
 or anything else in `cb`: the `x-kde-passwordManagerHint` type on Linux, the
 [nspasteboard.org](http://nspasteboard.org) types on macOS, and
 `ExcludeClipboardContentFromMonitorProcessing` and its relatives on Windows.
-Only text is recorded, and a copy replaced within 2 seconds may be missed.
+Only text is recorded, and where `cb` has to check every 2 seconds, a copy
+replaced sooner may be missed.
 
 ## Completions
 

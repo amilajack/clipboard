@@ -13,7 +13,8 @@ use arboard::Clipboard;
 use crate::history::{self, Use};
 use crate::{platform, remember};
 
-/// How often to look at the clipboard.
+/// How often to look at the clipboard where the platform doesn't say when it
+/// changes.
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Watches the clipboard until stopped, adding each new copy to history.
@@ -30,37 +31,80 @@ pub fn run() -> Result<(), String> {
         process::exit(0);
     })
     .map_err(|e| format!("{}: {}", address.display(), e))?;
-    eprintln!("cb: watching the clipboard; press Ctrl-C to stop");
+    let mut changes = platform::Changes::listen();
+    match &changes {
+        Some(changes) => eprintln!(
+            "cb: watching the clipboard through {}; press Ctrl-C to stop",
+            changes.name()
+        ),
+        None => eprintln!(
+            "cb: watching the clipboard, checking every {} seconds; press Ctrl-C to stop",
+            POLL_INTERVAL.as_secs()
+        ),
+    }
     hide_console();
 
     let mut watcher = Watcher::default();
-    let mut seen_change = None;
+    let mut count = platform::change_count();
     loop {
-        let change = platform::change_count();
-        if change.is_none() || change != seen_change {
-            match clipboard.get_text() {
-                Ok(text) => {
-                    seen_change = change;
-                    if watcher.observe(Some(&text), platform::is_concealed) {
-                        remember(&text, None, Use::Seen);
-                    }
+        check(&mut clipboard, &mut watcher);
+        match changes.as_mut() {
+            Some(listener) => {
+                if !listener.wait() {
+                    eprintln!(
+                        "cb: clipboard notifications stopped; checking every {} seconds instead",
+                        POLL_INTERVAL.as_secs()
+                    );
+                    changes = None;
                 }
-                // Empty, or holding something other than text.
-                Err(arboard::Error::ContentNotAvailable) => {
-                    seen_change = change;
-                    watcher.observe(None, || false);
+            }
+            None => poll(&mut count),
+        }
+    }
+}
+
+/// Reads the clipboard, and records it if it holds a new copy.
+fn check(clipboard: &mut Clipboard, watcher: &mut Watcher) {
+    // Right after a copy, the clipboard can be busy: on Windows, other
+    // programs open it to read it too. With nothing prompting a later look,
+    // give it a few tries before letting this change go.
+    for attempt in 0..5 {
+        match clipboard.get_text() {
+            Ok(text) => {
+                if watcher.observe(Some(&text), platform::is_concealed) {
+                    remember(&text, None, Use::Seen);
                 }
-                // Another program may have the clipboard open, as happens on
-                // Windows, or the connection to the display may have broken.
-                // Look again next time, with a fresh connection.
-                Err(_) => {
-                    if let Ok(fresh) = Clipboard::new() {
-                        clipboard = fresh;
-                    }
+                return;
+            }
+            // Empty, or holding something other than text.
+            Err(arboard::Error::ContentNotAvailable) => {
+                watcher.observe(None, || false);
+                return;
+            }
+            // The connection to the display may have broken too, so the next
+            // try gets a fresh one.
+            Err(_) => {
+                thread::sleep(Duration::from_millis(100 << attempt));
+                if let Ok(fresh) = Clipboard::new() {
+                    *clipboard = fresh;
                 }
             }
         }
+    }
+}
+
+/// Sleeps until the clipboard may have changed, looking every
+/// `POLL_INTERVAL`. Where the platform counts changes, as macOS and Windows
+/// do, the count is what's looked at, and the clipboard is only read when it
+/// moves.
+fn poll(count: &mut Option<u64>) {
+    loop {
         thread::sleep(POLL_INTERVAL);
+        let now = platform::change_count();
+        if now.is_none() || now != *count {
+            *count = now;
+            return;
+        }
     }
 }
 
