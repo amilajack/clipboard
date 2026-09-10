@@ -1,7 +1,8 @@
 [package]
 name = "clipboard-cli"
 version = "0.0.1"
-edition = "2018"
+edition = "2021"
+rust-version = "1.86"
 authors = ["Amila Welihinda <amilajack@gmail.com>"]
 license = "MIT"
 description = "A better command line clipboard"
@@ -16,5 +17,4 @@ name = "cb"
 path = "src/main.rs"
 
 [dependencies]
-atty = "0.2"
-copypasta = "0.7.1"
+arboard = { version = "3.6", default-features = false, features = ["wayland-data-control"] }

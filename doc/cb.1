@@ -1,24 +1,57 @@
-.TH "clipboard" "1" "January 2022" "" ""
+.TH "CB" "1" "September 2026" "" "User Commands"
 .hy
 .SH NAME
 .PP
-clipboard - a better cli clipboard
-.SH Examples
+cb \- a better command line clipboard
+.SH SYNOPSIS
 .PP
-\f[B]Copy to os clipbard\f[R]
+\f[B]cb\f[R] [\f[I]FILE\f[R]]
+.SH DESCRIPTION
+.PP
+Copy \f[I]FILE\f[R], or whatever is piped in, to the system clipboard.
+With no \f[I]FILE\f[R] and nothing piped in, print the clipboard.
+.PP
+One trailing newline is dropped when copying and added back when
+printing, so copying a file and printing the clipboard reproduces it.
+.PP
+On Linux, X11 and Wayland clipboards only live as long as the program
+that set them, so \f[B]cb\f[R] leaves a background process serving the
+copied text until another program copies something.
+.SH OPTIONS
+.TP
+\f[B]\-h\f[R], \f[B]\-\-help\f[R]
+Print help.
+.TP
+\f[B]\-V\f[R], \f[B]\-\-version\f[R]
+Print version.
+.SH EXAMPLES
+.PP
+\f[B]Copy a file to the clipboard\f[R]
 .PP
 cb package.json
 .PP
-\f[B]Pipe to os clipboard\f[R]
+\f[B]Pipe to the clipboard\f[R]
 .PP
-cat package.json | cb echo `Hello World!' | cb
+cat package.json | cb
+.PP
+echo \[aq]Hello World!\[aq] | cb
 .PP
 \f[B]Read clipboard contents\f[R]
 .PP
-cb | vim -
+cb | vim \-
 .PP
 \f[B]Search clipboard contents\f[R]
 .PP
 cb | grep hello
+.SH EXIT STATUS
+.TP
+0
+Success.
+.TP
+1
+The file could not be read or the clipboard could not be accessed.
+.TP
+2
+Invalid arguments.
 .SH AUTHORS
 Amila Welihinda.

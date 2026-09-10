@@ -1,3 +1,22 @@
+## Unreleased
+
+- Copied text now survives `cb` exiting on Linux. X11 and Wayland clipboards
+  only live as long as the program that set them, so `cb` leaves a background
+  process serving the text until something else is copied.
+- Native Wayland support, alongside X11.
+- Piped input and files keep their leading whitespace. Only one trailing
+  newline is dropped, and printing adds it back, so copying and printing a
+  file reproduces it exactly.
+- `cb FILE` copies the file even when stdin is not a terminal, such as in
+  scripts and editor tasks, instead of copying empty input.
+- Add `--help` and `--version`.
+- Errors are reported as messages with exit status 1, or 2 for invalid
+  arguments, instead of panics.
+- Replace the unmaintained `atty` (RUSTSEC-2021-0145, RUSTSEC-2024-0375) with
+  `std::io::IsTerminal`, and `copypasta` with `arboard`.
+- Building no longer needs the X11 development libraries.
+- Minimum supported Rust version is now 1.86.
+
 ## v0.0.1
 
 initial release
