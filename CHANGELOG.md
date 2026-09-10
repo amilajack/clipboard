@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4](https://github.com/amilajack/clipboard/compare/v0.0.3...v0.0.4) - 2026-09-10
+
+### Added
+
+- add cb peek to search clipboard history
+
+### Other
+
+- Merge pull request #20 from amilajack/feat/peek
+
 ## [0.0.2](https://github.com/amilajack/clipboard/compare/v0.0.1...v0.0.2) - 2026-09-10
 
 ### Fixed
