@@ -13,7 +13,7 @@ cargo install clipboard-cli
 ## Usage
 
 ```bash
-# Copy file to clipbard
+# Copy file to clipboard
 cb package.json
 
 # Pipe to clipboard
@@ -25,6 +25,9 @@ cb | vim -
 
 # Search clipboard contents
 cb | grep hello
+
+# Show all options
+cb --help
 ```
 
 ## Upcoming
@@ -45,4 +48,4 @@ cb p 1
 | Single Command | ✅            | ❌              | ✅              | ✅                |
 | Cross Platform | ✅            | ❌ (macOS only) | ❌ (linux only) | ❌ (windows only) |
 | Simple API     | ✅            | ✅              | ❌              | ✅                |
-| History Peak   | ✅            | ❌              | ❌              | ❌                |
+| History Peek   | 🚧 planned    | ❌              | ❌              | ❌                |

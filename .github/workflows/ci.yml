@@ -1,7 +1,7 @@
 name: CICD
 
 env:
-  MIN_SUPPORTED_RUST_VERSION: "1.59.0"
+  MIN_SUPPORTED_RUST_VERSION: "1.86.0"
   CARGO_TERM_COLOR: "always"
   CICD_INTERMEDIATES_DIR: "_cicd-intermediates"
 
@@ -29,15 +29,6 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-
-      - name: Install xcb
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libgl1-mesa-dev \
-            libxcb-shape0-dev \
-            libxcb-xfixes0-dev \
-            libx11-xcb-dev
 
       - name: Install rust toolchain (v${{ env.MIN_SUPPORTED_RUST_VERSION }})
         uses: dtolnay/rust-toolchain@master
@@ -75,16 +66,6 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-
-      - name: Install xcb
-        if: startsWith(matrix.job.os, 'ubuntu')
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libgl1-mesa-dev \
-            libxcb-shape0-dev \
-            libxcb-xfixes0-dev \
-            libx11-xcb-dev
 
       - name: Extract crate information
         shell: bash
