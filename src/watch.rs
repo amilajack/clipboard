@@ -110,9 +110,13 @@ fn poll(count: &mut Option<u64>) {
 
 /// Makes `cb watch` start at login, and starts it now.
 pub fn install() -> Result<(), String> {
-    let address = control::address(&history::require_path()?);
+    let history = history::require_path()?;
+    let address = control::address(&history);
     let exe = env::current_exe().map_err(|e| e.to_string())?;
-    println!("{}", autostart::install(&exe)?);
+    // Programs started at login don't see variables set in a shell, so a
+    // history file other than the default has to be passed along.
+    let custom = env::var_os(history::HISTORY_ENV).map(|_| history.as_path());
+    println!("{}", autostart::install(&exe, custom)?);
     if control::is_running(&address) {
         println!("Already watching the clipboard");
         return Ok(());
@@ -338,16 +342,28 @@ mod autostart {
         )),
         allow(dead_code)
     )]
-    pub fn desktop_entry(exe: &Path) -> String {
+    pub fn desktop_entry(exe: &Path, history: Option<&Path>) -> String {
+        let environment = match history {
+            Some(history) => format!(
+                "env {} ",
+                exec_quote(&format!(
+                    "{}={}",
+                    history::HISTORY_ENV,
+                    history.to_string_lossy()
+                ))
+            ),
+            None => String::new(),
+        };
         format!(
             "[Desktop Entry]\n\
              Type=Application\n\
              Name=cb clipboard history\n\
              Comment=Records what you copy, for cb peek\n\
-             Exec={} watch\n\
+             Exec={}{} watch\n\
              Terminal=false\n\
              NoDisplay=true\n\
              X-GNOME-Autostart-enabled=true\n",
+            environment,
             exec_quote(&exe.to_string_lossy())
         )
     }
@@ -381,7 +397,16 @@ mod autostart {
     /// A launchd agent that starts the watcher at login, and again if it
     /// fails, but not after it's been stopped.
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-    pub fn launch_agent(label: &str, exe: &Path) -> String {
+    pub fn launch_agent(label: &str, exe: &Path, history: Option<&Path>) -> String {
+        let environment = match history {
+            Some(history) => format!(
+                "    <key>EnvironmentVariables</key>\n    <dict>\n        \
+                 <key>{}</key>\n        <string>{}</string>\n    </dict>\n",
+                history::HISTORY_ENV,
+                xml_escape(&history.to_string_lossy())
+            ),
+            None => String::new(),
+        };
         format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -394,7 +419,7 @@ mod autostart {
         <string>{}</string>
         <string>watch</string>
     </array>
-    <key>RunAtLoad</key>
+{}    <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <dict>
@@ -409,7 +434,8 @@ mod autostart {
 </plist>
 "#,
             xml_escape(label),
-            xml_escape(&exe.to_string_lossy())
+            xml_escape(&exe.to_string_lossy()),
+            environment
         )
     }
 
@@ -446,13 +472,13 @@ mod autostart {
         unix,
         not(any(target_os = "macos", target_os = "android", target_os = "emscripten"))
     ))]
-    fn entry(exe: &Path) -> String {
-        desktop_entry(exe)
+    fn entry(exe: &Path, history: Option<&Path>) -> String {
+        desktop_entry(exe, history)
     }
 
     #[cfg(target_os = "macos")]
-    fn entry(exe: &Path) -> String {
-        launch_agent(LAUNCH_AGENT, exe)
+    fn entry(exe: &Path, history: Option<&Path>) -> String {
+        launch_agent(LAUNCH_AGENT, exe, history)
     }
 
     /// Returns what it did, for the user.
@@ -463,13 +489,13 @@ mod autostart {
             not(any(target_os = "macos", target_os = "android", target_os = "emscripten"))
         )
     ))]
-    pub fn install(exe: &Path) -> Result<String, String> {
+    pub fn install(exe: &Path, history: Option<&Path>) -> Result<String, String> {
         let path = entry_path()?;
         let context = |e: io::Error| format!("{}: {}", path.display(), e);
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir).map_err(context)?;
         }
-        fs::write(&path, entry(exe)).map_err(context)?;
+        fs::write(&path, entry(exe, history)).map_err(context)?;
         Ok(format!("Added {}", path.display()))
     }
 
@@ -496,8 +522,28 @@ mod autostart {
     const RUN_VALUE: &str = "cb watch";
 
     #[cfg(windows)]
-    pub fn install(exe: &Path) -> Result<String, String> {
+    pub fn install(exe: &Path, history: Option<&Path>) -> Result<String, String> {
         use std::os::windows::process::CommandExt;
+
+        // A Run entry can't set variables, so the watcher it starts only uses
+        // a custom history file if the variable is set for the account.
+        if let Some(history) = history {
+            let set_for_account = Command::new("reg")
+                .args(["query", r"HKCU\Environment", "/v", history::HISTORY_ENV])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|status| status.success());
+            if !set_for_account {
+                return Err(format!(
+                    "programs started at login won't see {0}; set it for your \
+                     account with `setx {0} \"{1}\"`, then run this again in a new \
+                     terminal",
+                    history::HISTORY_ENV,
+                    history.display()
+                ));
+            }
+        }
 
         // reg takes quotes inside the value escaped with backslashes;
         // `raw_arg` keeps std from quoting them all over again.
@@ -528,7 +574,7 @@ mod autostart {
     }
 
     #[cfg(not(any(unix, windows)))]
-    pub fn install(_exe: &Path) -> Result<String, String> {
+    pub fn install(_exe: &Path, _history: Option<&Path>) -> Result<String, String> {
         Err("starting at login isn't supported here".to_owned())
     }
 
@@ -538,7 +584,7 @@ mod autostart {
     }
 
     #[cfg(any(target_os = "android", target_os = "emscripten"))]
-    pub fn install(_exe: &Path) -> Result<String, String> {
+    pub fn install(_exe: &Path, _history: Option<&Path>) -> Result<String, String> {
         Err("starting at login isn't supported here".to_owned())
     }
 
@@ -617,7 +663,7 @@ mod tests {
 
     #[test]
     fn desktop_entries_quote_the_path() {
-        let entry = autostart::desktop_entry(Path::new("/home/a b/c$d\"e\\f%g"));
+        let entry = autostart::desktop_entry(Path::new("/home/a b/c$d\"e\\f%g"), None);
         assert!(
             entry.contains(r#"Exec="/home/a b/c\\$d\\"e\\\\f%%g" watch"#),
             "{}",
@@ -628,12 +674,46 @@ mod tests {
 
     #[test]
     fn launch_agents_escape_the_path() {
-        let agent = autostart::launch_agent("x", Path::new("/Users/a&b/<cb>"));
+        let agent = autostart::launch_agent("x", Path::new("/Users/a&b/<cb>"), None);
         assert!(
             agent.contains("<string>/Users/a&amp;b/&lt;cb&gt;</string>"),
             "{}",
             agent
         );
         assert!(agent.contains("<key>RunAtLoad</key>\n    <true/>"));
+        assert!(!agent.contains("EnvironmentVariables"));
+    }
+
+    #[test]
+    fn desktop_entries_pass_on_a_custom_history_file() {
+        let entry = autostart::desktop_entry(
+            Path::new("/usr/bin/cb"),
+            Some(Path::new("/home/a/my history.jsonl")),
+        );
+        assert!(
+            entry.contains(
+                r#"Exec=env "CB_HISTORY_FILE=/home/a/my history.jsonl" "/usr/bin/cb" watch"#
+            ),
+            "{}",
+            entry
+        );
+    }
+
+    #[test]
+    fn launch_agents_pass_on_a_custom_history_file() {
+        let agent = autostart::launch_agent(
+            "x",
+            Path::new("/usr/local/bin/cb"),
+            Some(Path::new("/Users/a/h&b.jsonl")),
+        );
+        assert!(
+            agent.contains(
+                "    </array>\n    <key>EnvironmentVariables</key>\n    <dict>\n        \
+                 <key>CB_HISTORY_FILE</key>\n        <string>/Users/a/h&amp;b.jsonl</string>\n    \
+                 </dict>\n    <key>RunAtLoad</key>"
+            ),
+            "{}",
+            agent
+        );
     }
 }

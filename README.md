@@ -85,6 +85,8 @@ cb watch               # or run it in the foreground; Ctrl-C stops it
 (`~/Library/LaunchAgents/com.github.amilajack.cb.watch.plist`), and an entry
 under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows. The
 entry runs the `cb` you installed it with, so install again if you move `cb`.
+If `CB_HISTORY_FILE` is set when you install, the entry passes it on. On
+Windows, where a login entry can't, set it for your account with `setx` first.
 Window managers without desktop autostart, like sway and i3, need `cb watch`
 started from their config instead. Only one watcher runs at a time.
 

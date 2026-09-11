@@ -86,7 +86,9 @@ pub fn require_path() -> Result<PathBuf, String> {
 fn resolve_path(overridden: Option<OsString>) -> Option<PathBuf> {
     match overridden {
         Some(path) if path.is_empty() => None,
-        Some(path) => Some(PathBuf::from(path)),
+        // Made absolute, so that cb and a watcher started at login, in
+        // another directory, agree on which file it is.
+        Some(path) => Some(std::path::absolute(&path).unwrap_or_else(|_| PathBuf::from(path))),
         None => dirs::data_dir().map(|dir| dir.join("cb").join("history.jsonl")),
     }
 }
@@ -368,7 +370,7 @@ mod tests {
         assert_eq!(resolve_path(Some("".into())), None);
         assert_eq!(
             resolve_path(Some("h.jsonl".into())),
-            Some(PathBuf::from("h.jsonl"))
+            Some(env::current_dir().unwrap().join("h.jsonl"))
         );
     }
 }

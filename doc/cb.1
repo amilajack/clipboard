@@ -94,6 +94,8 @@ This adds \f[I]\[ti]/.config/autostart/cb\-watch.desktop\f[R] on Linux,
 on macOS, and a \f[I]cb watch\f[R] value under
 \f[I]HKCU\[rs]Software\[rs]Microsoft\[rs]Windows\[rs]CurrentVersion\[rs]Run\f[R]
 on Windows, each running the \f[B]cb\f[R] it was installed with.
+If \f[B]CB_HISTORY_FILE\f[R] is set, the entry passes it on; on Windows,
+where it can't, it has to be set for the account, as \f[B]setx\f[R] does.
 .TP
 \f[B]\-\-uninstall\f[R]
 Remove what \f[B]\-\-install\f[R] added, and stop the running watcher.
