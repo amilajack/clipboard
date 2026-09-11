@@ -7,6 +7,7 @@ use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use fs4::FileExt;
 use serde::{Deserialize, Serialize};
 
 /// Where to keep history instead of the platform's data directory. An empty
@@ -18,6 +19,10 @@ const MAX_ENTRIES: usize = 500;
 
 /// Larger copies aren't kept, so that reading history stays fast.
 const MAX_ENTRY_BYTES: usize = 1024 * 1024;
+
+/// The oldest entries go once history grows past this, since every copy
+/// rereads and rewrites the whole file.
+const MAX_HISTORY_BYTES: usize = 10 * 1024 * 1024;
 
 /// How long an unused entry takes to lose half its frecency, in seconds.
 const HALF_LIFE: u64 = 24 * 60 * 60;
@@ -104,10 +109,27 @@ pub fn record(text: &str, source: Option<&Path>, how: Use) -> Result<(), String>
     };
     let source =
         source.map(|source| fs::canonicalize(source).unwrap_or_else(|_| source.to_owned()));
-    let context = |e: io::Error| format!("{}: {}", path.display(), e);
-    let mut entries = load(&path).map_err(context)?;
-    if push(&mut entries, text, source, how, now()) {
-        save(&path, &entries).map_err(context)
+    update(&path, |entries| push(entries, text, source, how, now()))
+        .map_err(|e| format!("{}: {}", path.display(), e))
+}
+
+/// Applies `change` to the history at `path`, saving it if `change` says it
+/// changed anything. A lock is held throughout: `cb watch` and the cb that
+/// just copied something often write at the same moment, and without it one
+/// would overwrite the other's change.
+fn update(path: &Path, change: impl FnOnce(&mut Vec<Entry>) -> bool) -> io::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    // A file of its own, since saving replaces the history file. The lock is
+    // released when it's closed.
+    let lock = private()
+        .truncate(false)
+        .open(path.with_extension("lock"))?;
+    FileExt::lock(&lock)?;
+    let mut entries = load(path)?;
+    if change(&mut entries) {
+        save(path, &entries)
     } else {
         Ok(())
     }
@@ -132,8 +154,9 @@ pub fn load(path: &Path) -> io::Result<Vec<Entry>> {
 
 /// Records a use of `text` at `now` as the newest entry, carrying over the
 /// uses and frecency of any earlier entry for the same text, and drops the
-/// oldest entries past the limit. Returns whether anything changed: empty and
-/// oversized text isn't kept, and seeing the newest entry again isn't a use.
+/// oldest entries past the limits. Returns whether anything changed: empty
+/// and oversized text isn't kept, and seeing the newest entry again isn't a
+/// use.
 fn push(entries: &mut Vec<Entry>, text: &str, source: Option<PathBuf>, how: Use, now: u64) -> bool {
     if text.is_empty() || text.len() > MAX_ENTRY_BYTES {
         return false;
@@ -157,9 +180,18 @@ fn push(entries: &mut Vec<Entry>, text: &str, source: Option<PathBuf>, how: Use,
         entry.source = entry.source.or(old.source);
     }
     entries.push(entry);
-    if entries.len() > MAX_ENTRIES {
-        entries.drain(..entries.len() - MAX_ENTRIES);
+
+    let mut dropped = entries.len().saturating_sub(MAX_ENTRIES);
+    let mut size: usize = entries[dropped..]
+        .iter()
+        .map(|entry| entry.text.len())
+        .sum();
+    // The newest entry is never over the limit on its own, so it stays.
+    while size > MAX_HISTORY_BYTES {
+        size -= entries[dropped].text.len();
+        dropped += 1;
     }
+    entries.drain(..dropped);
     true
 }
 
@@ -177,7 +209,7 @@ fn save(path: &Path, entries: &[Entry]) -> io::Result<()> {
 }
 
 fn write_entries(path: &Path, entries: &[Entry]) -> io::Result<()> {
-    let mut out = BufWriter::new(create_private(path)?);
+    let mut out = BufWriter::new(private().truncate(true).open(path)?);
     for entry in entries {
         serde_json::to_writer(&mut out, entry)?;
         out.write_all(b"\n")?;
@@ -185,16 +217,17 @@ fn write_entries(path: &Path, entries: &[Entry]) -> io::Result<()> {
     out.flush()
 }
 
-/// History can hold passwords and tokens, so only its owner may read it.
-fn create_private(path: &Path) -> io::Result<File> {
+/// Options for creating files only their owner can read, since history can
+/// hold passwords and tokens.
+fn private() -> OpenOptions {
     let mut options = OpenOptions::new();
-    options.write(true).create(true).truncate(true);
+    options.write(true).create(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    options.open(path)
+    options
 }
 
 #[cfg(test)]
@@ -296,6 +329,18 @@ mod tests {
     }
 
     #[test]
+    fn push_drops_the_oldest_entries_past_the_size_limit() {
+        let big = |i: u64| entry(&format!("{}{}", i, "x".repeat(MAX_ENTRY_BYTES - 8)), i);
+        let mut entries: Vec<_> = (0..12).map(big).collect();
+        let newest = big(99).text;
+        assert!(push(&mut entries, &newest, None, Use::Copied, 99));
+        let size: usize = entries.iter().map(|entry| entry.text.len()).sum();
+        assert!(size <= MAX_HISTORY_BYTES, "{}", size);
+        assert_eq!(entries.len(), MAX_HISTORY_BYTES / MAX_ENTRY_BYTES);
+        assert_eq!(entries.last().unwrap().text, newest);
+    }
+
+    #[test]
     fn frecency_halves_every_day_unused() {
         let a = Entry {
             score: 4.0,
@@ -331,6 +376,29 @@ mod tests {
         ];
         save(&path, &entries).unwrap();
         assert_eq!(load(&path).unwrap(), entries);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn writers_at_the_same_time_all_land() {
+        let dir = temp_path("concurrent");
+        let path = dir.join("history.jsonl");
+        let writers: Vec<_> = (0..8)
+            .map(|writer| {
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    for i in 0..25 {
+                        let text = format!("{}-{}", writer, i);
+                        update(&path, |entries| push(entries, &text, None, Use::Copied, 1))
+                            .unwrap();
+                    }
+                })
+            })
+            .collect();
+        for writer in writers {
+            writer.join().unwrap();
+        }
+        assert_eq!(load(&path).unwrap().len(), 8 * 25);
         fs::remove_dir_all(dir).unwrap();
     }
 
