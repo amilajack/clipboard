@@ -59,8 +59,8 @@ unused. What you copy often stays near the top, and old favorites sink within
 days. Matches keep that order as you search, which is case-sensitive only if it
 contains an uppercase letter.
 
-History holds the last 500 copies, up to 1 MiB each, in a file only you can
-read: `~/.local/share/cb/history.jsonl` on Linux,
+History holds the last 500 copies, up to 1 MiB each and 10 MiB in all, in a
+file only you can read: `~/.local/share/cb/history.jsonl` on Linux,
 `~/Library/Application Support/cb/history.jsonl` on macOS, and
 `%APPDATA%\cb\history.jsonl` on Windows. Set `CB_HISTORY_FILE` to keep it
 somewhere else, or to an empty string to turn history off. The preview theme
