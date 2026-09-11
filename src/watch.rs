@@ -121,7 +121,7 @@ pub fn install() -> Result<(), String> {
         println!("Already watching the clipboard");
         return Ok(());
     }
-    start_in_background(&exe).map_err(|e| format!("failed to start cb watch: {}", e))?;
+    start_in_background(&exe, custom).map_err(|e| format!("failed to start cb watch: {}", e))?;
     // Wait for it to answer, so that a watcher that can't start, say for
     // want of a display, is reported here rather than failing silently.
     for _ in 0..30 {
@@ -146,13 +146,18 @@ pub fn uninstall() -> Result<(), String> {
     Ok(())
 }
 
-fn start_in_background(exe: &Path) -> io::Result<()> {
+/// Starts `cb watch` on its own. It runs from `/`, so a custom history file
+/// is passed as the absolute path, not as given.
+fn start_in_background(exe: &Path, custom: Option<&Path>) -> io::Result<()> {
     let mut command = Command::new(exe);
     command
         .arg("watch")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    if let Some(custom) = custom {
+        command.env(history::HISTORY_ENV, custom);
+    }
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
