@@ -661,7 +661,8 @@ mod tests {
             .collect();
         let listening = starts
             .into_iter()
-            .filter(|start| matches!(start.join(), Ok(true)))
+            .map(|start| start.join().unwrap())
+            .filter(|&listening| listening)
             .count();
         assert_eq!(listening, 1);
         control::release(&address);
