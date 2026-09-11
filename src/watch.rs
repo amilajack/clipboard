@@ -346,8 +346,13 @@ mod control {
     /// linked into place, so it appears whole or not at all.
     #[cfg(windows)]
     fn bind(address: &Path) -> io::Result<Listener> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        // Unique to this attempt, so attempts never share the file.
+        static ATTEMPTS: AtomicUsize = AtomicUsize::new(0);
+        let attempt = ATTEMPTS.fetch_add(1, Ordering::Relaxed);
         let listener = Listener::bind((Ipv4Addr::LOCALHOST, 0))?;
-        let temp = address.with_extension(format!("{}.tmp", process::id()));
+        let temp = address.with_extension(format!("{}-{}.tmp", process::id(), attempt));
         fs::write(&temp, listener.local_addr()?.port().to_string())?;
         let linked = fs::hard_link(&temp, address);
         fs::remove_file(&temp).ok();
