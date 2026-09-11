@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.7](https://github.com/amilajack/clipboard/compare/v0.0.6...v0.0.7) - 2026-09-11
+
+### Fixed
+
+- give the watcher --install starts the absolute history path
+- pass CB_HISTORY_FILE to cb watch started at login
+
+### Other
+
+- Merge pull request #29 from amilajack/fix/watch-single-instance
+- Merge pull request #28 from amilajack/fix/watch-autostart-env
+
 ## [0.0.6](https://github.com/amilajack/clipboard/compare/v0.0.5...v0.0.6) - 2026-09-10
 
 ### Added
