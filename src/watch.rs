@@ -20,17 +20,22 @@ const POLL_INTERVAL: Duration = Duration::from_secs(2);
 /// Watches the clipboard until stopped, adding each new copy to history.
 pub fn run() -> Result<(), String> {
     let address = control::address(&history::require_path()?);
-    if control::is_running(&address) {
-        eprintln!("cb: already watching the clipboard");
-        return Ok(());
-    }
-    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
+    // The address is taken before anything slow, so that of two watchers
+    // starting at once, the second finds the first.
     let stop_address = address.clone();
-    control::listen(&address, move || {
-        fs::remove_file(&stop_address).ok();
+    let listening = control::listen(&address, move || {
+        control::release(&stop_address);
         process::exit(0);
     })
     .map_err(|e| format!("{}: {}", address.display(), e))?;
+    if !listening {
+        eprintln!("cb: already watching the clipboard");
+        return Ok(());
+    }
+    let mut clipboard = Clipboard::new().map_err(|e| {
+        control::release(&address);
+        e.to_string()
+    })?;
     let mut changes = platform::Changes::listen();
     match &changes {
         Some(changes) => eprintln!(
@@ -241,9 +246,13 @@ mod control {
         dir.join(format!("cb-watch-{:016x}", hash))
     }
 
-    /// Serves `address` in the background, calling `on_stop` when asked to.
-    pub fn listen(address: &Path, on_stop: impl Fn() + Send + 'static) -> io::Result<()> {
-        let listener = bind(address)?;
+    /// Makes this process the watcher at `address` and serves it in the
+    /// background, calling `on_stop` when asked to. Returns false, and serves
+    /// nothing, if another watcher already has the address.
+    pub fn listen(address: &Path, on_stop: impl Fn() + Send + 'static) -> io::Result<bool> {
+        let Some(listener) = claim(address)? else {
+            return Ok(false);
+        };
         thread::spawn(move || {
             for stream in listener.incoming().flatten() {
                 if wants_stop(stream) {
@@ -251,7 +260,40 @@ mod control {
                 }
             }
         });
-        Ok(())
+        Ok(true)
+    }
+
+    /// Gives up `address`, for a watcher on its way out.
+    pub fn release(address: &Path) {
+        fs::remove_file(address).ok();
+    }
+
+    /// Takes `address`, or returns `None` if a watcher answers there. Taking
+    /// it can only succeed for one process at a time, so of two watchers
+    /// starting at once, one gets it and the other finds it taken.
+    fn claim(address: &Path) -> io::Result<Option<Listener>> {
+        for _ in 0..3 {
+            match bind(address) {
+                Ok(listener) => return Ok(Some(listener)),
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        io::ErrorKind::AddrInUse | io::ErrorKind::AlreadyExists
+                    ) =>
+                {
+                    if is_running(address) {
+                        return Ok(None);
+                    }
+                    // Left behind by a watcher that was killed.
+                    match fs::remove_file(address) {
+                        Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
+                        _ => {}
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Err(io::ErrorKind::AddrInUse.into())
     }
 
     pub fn is_running(address: &Path) -> bool {
@@ -289,13 +331,9 @@ mod control {
         (greeting.trim_end() == GREETING).then_some(stream)
     }
 
+    /// Fails if the socket file exists.
     #[cfg(unix)]
     fn bind(address: &Path) -> io::Result<Listener> {
-        // Left behind by a watcher that was killed.
-        match fs::remove_file(address) {
-            Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
-            _ => {}
-        }
         Listener::bind(address)
     }
 
@@ -304,11 +342,16 @@ mod control {
         Stream::connect(address)
     }
 
+    /// Fails if the port file exists. It's written to the side and then
+    /// linked into place, so it appears whole or not at all.
     #[cfg(windows)]
     fn bind(address: &Path) -> io::Result<Listener> {
         let listener = Listener::bind((Ipv4Addr::LOCALHOST, 0))?;
-        fs::write(address, listener.local_addr()?.port().to_string())?;
-        Ok(listener)
+        let temp = address.with_extension(format!("{}.tmp", process::id()));
+        fs::write(&temp, listener.local_addr()?.port().to_string())?;
+        let linked = fs::hard_link(&temp, address);
+        fs::remove_file(&temp).ok();
+        linked.map(|()| listener)
     }
 
     #[cfg(windows)]
@@ -599,12 +642,44 @@ mod tests {
         assert!(!control::stop(&address));
 
         let (stopped, stops) = mpsc::channel();
-        control::listen(&address, move || stopped.send(()).unwrap()).unwrap();
+        assert!(control::listen(&address, move || stopped.send(()).unwrap()).unwrap());
         assert!(control::is_running(&address));
         assert!(stops.try_recv().is_err(), "checking must not stop it");
         assert!(control::stop(&address));
         stops.recv_timeout(Duration::from_secs(2)).unwrap();
-        fs::remove_file(&address).ok();
+        control::release(&address);
+    }
+
+    #[test]
+    fn of_watchers_starting_together_only_one_listens() {
+        let address = env::temp_dir().join(format!("cb-test-{}-race", process::id()));
+        let starts: Vec<_> = (0..8)
+            .map(|_| {
+                let address = address.clone();
+                thread::spawn(move || control::listen(&address, || {}).unwrap())
+            })
+            .collect();
+        let listening = starts
+            .into_iter()
+            .filter(|start| matches!(start.join(), Ok(true)))
+            .count();
+        assert_eq!(listening, 1);
+        control::release(&address);
+    }
+
+    #[test]
+    fn an_address_left_behind_is_taken_over() {
+        let address = env::temp_dir().join(format!("cb-test-{}-stale", process::id()));
+        #[cfg(unix)]
+        drop(std::os::unix::net::UnixListener::bind(&address).unwrap());
+        #[cfg(windows)]
+        fs::write(&address, "1").unwrap();
+        assert!(address.exists());
+        assert!(!control::is_running(&address));
+
+        assert!(control::listen(&address, || {}).unwrap());
+        assert!(control::is_running(&address));
+        control::release(&address);
     }
 
     #[test]
