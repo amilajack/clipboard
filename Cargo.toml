@@ -36,7 +36,7 @@ wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 wl-clipboard-rs = "0.9"
-x11rb = { version = "0.13", features = ["xfixes"] }
+x11rb = { version = "0.14", features = ["xfixes"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSPasteboard"] }
